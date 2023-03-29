@@ -53,7 +53,7 @@ template <typename InputType, ck::index_t Version,
 void run_fmha_dgrad_fp16_bf16_gfx90a_loop_(
     Launch_params<FMHA_dgrad_params> &launch_params) {
   using F32 = float;
-  using U16 = unsigned short;
+  using INT32 = int;
   using BF16 = ck::bhalf_t;
   using FP16 = ck::half_t;
 
@@ -68,7 +68,7 @@ void run_fmha_dgrad_fp16_bf16_gfx90a_loop_(
   using AccDataType = F32;
   using ShuffleDataType = F32;
   using LSEDataType = F32;
-  using ZDataType = U16;
+  using ZDataType = INT32;
   using Acc0BiasDataType = ck::Tuple<>;
   using Acc1BiasDataType = ck::Tuple<>;
 
