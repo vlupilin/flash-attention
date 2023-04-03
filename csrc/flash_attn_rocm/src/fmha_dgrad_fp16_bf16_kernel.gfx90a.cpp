@@ -64,7 +64,7 @@ void run_fmha_dgrad_fp16_bf16_gfx90a_loop_(
   using YElementOp = PassThrough;
 
   using DataType = InputType;
-  using GemmDataType = InputType;
+  using GemmDataType = BF16;
   using AccDataType = F32;
   using ShuffleDataType = F32;
   using LSEDataType = F32;
