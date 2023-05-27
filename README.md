@@ -138,6 +138,34 @@ To run the tests:
 ```
 pytest -q -s tests/test_flash_attn.py
 ```
+
+## AMD GPU/ROCm support
+To install (requiring ROCm, and MI210 or MI250 GPU):
+You can compile from source:
+```
+Launch docker rocm/pytorch:rocm5.4_ubuntu20.04_py3.8_pytorch_1.12.1
+Enter flash_attention
+$patch /opt/conda/lib/python3.8/site-packages/torch/utils/hipify/hipify_python.py hipify_patch.patch
+$python setup.py install
+```
+
+Alternatively you can build the whole docker image with flash attention automatically.
+```
+docker build . -f Dockerfile.rocm -t [IMAGE NAME you like]
+```
+
+Interface: `src/flash_attention.py`
+
+To run the benchmark against PyTorch standard attention:
+```
+PYTHONPATH=$PWD python benchmarks/benchmark_flash_attention.py
+```
+
+FlashAttention currently supports:
+1. MI200 GPUs (MI210, MI250).
+2. fp16 and bf16.
+3. Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ..., 128).
+
 ## When you encounter issues
 
 This alpha release of FlashAttention contains code written for a research
