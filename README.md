@@ -166,6 +166,23 @@ FlashAttention currently supports:
 2. fp16 and bf16.
 3. Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ..., 128).
 
+Status:
+```
+PYTHONPATH=$PWD python benchmarks/benchmark_flash_attention.py
+FlashAttention - Forward pass
+8.20 ms
+FlashAttention - Backward pass
+29.65 ms
+FlashAttention - Forward + Backward pass
+38.69 ms
+PyTorch Standard Attention - Forward pass
+26.26 ms
+PyTorch Standard Attention - Backward pass
+63.14 ms
+PyTorch Standard Attention - Forward + Backward pass
+89.34 ms
+```
+
 ## When you encounter issues
 
 This alpha release of FlashAttention contains code written for a research
