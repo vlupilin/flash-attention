@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <torch/torch.h>
 
 #include "ck/ck.hpp"
 
@@ -96,10 +97,18 @@ static inline size_t get_size_in_bytes( size_t n, Data_type dtype ) {
 }
 
 static std::tuple<uint64_t, uint64_t> unpack(at::PhiloxCudaState arg) {
+#if (defined(TORCH_VERSION_MAJOR) && TORCH_VERSION_MAJOR >= 2) || (defined(TORCH_VERSION_MINOR) && TORCH_VERSION_MINOR >= 13)
+  if (arg.captured_) {
+    return std::make_tuple(static_cast<uint64_t>(*arg.seed_.ptr), static_cast<uint64_t>(*(arg.offset_.ptr) + arg.offset_intragraph_));
+  } else {
+    return std::make_tuple(arg.seed_.val, arg.offset_.val);
+  }
+#else
   if (arg.captured_) {
     return std::make_tuple(arg.seed_, static_cast<uint64_t>(*(arg.offset_.ptr) + arg.offset_intragraph_));
   } else {
     return std::make_tuple(arg.seed_, arg.offset_.val);
   }
+#endif
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
