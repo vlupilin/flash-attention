@@ -166,6 +166,12 @@ FlashAttention currently supports:
 2. fp16 and bf16.
 3. Head dimensions that are multiples of 8, up to 128 (e.g., 8, 16, 24, ..., 128).
 
+Status:
+```
+pytest tests/test_flash_attn.py
+2113 passed, 2848 skipped
+```
+
 ## When you encounter issues
 
 This alpha release of FlashAttention contains code written for a research
