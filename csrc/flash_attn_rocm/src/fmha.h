@@ -67,7 +67,8 @@ struct FMHA_fprop_params : public Qkv_params {
     void *__restrict__ o_tmp_ptr;
 
     // The pointer to the S matrix.
-    void * __restrict__ s_ptr;
+    // void * __restrict__ s_ptr;
+    std::vector<void*> s_ptr;
     // The stride between rows of the S matrix.
     // int64_t s_stride_in_bytes;
     uint32_t s_stride_in_bytes;
@@ -183,6 +184,8 @@ struct Launch_params{
 
     bool is_dropout;
     bool return_softmax;
+    bool input_permute;
+    bool is_fused_qkv;
 
     Kernel_params params;
     int num_full_heads;
