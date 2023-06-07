@@ -23,16 +23,16 @@ static constexpr auto MaskingSpec_default =
 static constexpr auto MaskingSpec_causal =
     MaskingSpecialization::MaskOutUpperTriangle;
 
-struct SimpleDeviceMem
-{
+class SimpleDeviceMem {
+public:
     SimpleDeviceMem() = delete;
-    SimpleDeviceMem(std::size_t mem_size) : p_mem_{}
-    {
+    explicit SimpleDeviceMem(std::size_t mem_size) : p_mem_{} {
         (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size);
     }
-    void* GetDeviceBuffer() { return p_mem_; }
+    void* GetDeviceBuffer() const { return p_mem_; }
     ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
 
+private:
     void* p_mem_;
 };
 
@@ -352,7 +352,7 @@ void run_fmha_fp16_bf16_gfx90a_loop_(LaunchParams<FmhaFpropParams> &launch_param
                                         seeds);
 
       // specify workspace for problem_desc
-      SimpleDeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+      SimpleDeviceMem problem_desc_workspace{gemm.GetWorkSpaceSize(&argument)};
 
       gemm.SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
 
@@ -467,7 +467,7 @@ void run_fmha_fp16_bf16_gfx90a_loop_(LaunchParams<FmhaFpropParams> &launch_param
                                         seeds);
 
       // specify workspace for problem_desc
-      SimpleDeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+      SimpleDeviceMem problem_desc_workspace{gemm.GetWorkSpaceSize(&argument)};
 
       gemm.SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
 

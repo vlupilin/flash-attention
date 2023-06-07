@@ -33,15 +33,17 @@
 
 
 
-struct SimpleDeviceMem {
-  SimpleDeviceMem() = delete;
-  SimpleDeviceMem(std::size_t mem_size) : p_mem_{} {
-    (void)hipMalloc(static_cast<void **>(&p_mem_), mem_size);
-  }
-  void *GetDeviceBuffer() { return p_mem_; }
-  ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
+class SimpleDeviceMem {
+public:
+    SimpleDeviceMem() = delete;
+    explicit SimpleDeviceMem(std::size_t mem_size) : p_mem_{} {
+        (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size);
+    }
+    void* GetDeviceBuffer() const { return p_mem_; }
+    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
 
-  void *p_mem_;
+private:
+    void* p_mem_;
 };
 
 
@@ -179,7 +181,7 @@ void run_fmha_dgrad_fp16_bf16_gfx90a_loop_(LaunchParams<FmhaDgradParams> &launch
         b1_element_op, c_element_op, dropout_ratio, seeds);
 
     // specify workspace for problem_desc
-    SimpleDeviceMem problem_desc_workspace(gemm.GetWorkSpaceSize(&argument));
+    SimpleDeviceMem problem_desc_workspace{gemm.GetWorkSpaceSize(&argument)};
 
     gemm.SetWorkSpacePointer(&argument,
                              problem_desc_workspace.GetDeviceBuffer());
