@@ -23,13 +23,17 @@
 
 #pragma once
 
+#include <memory>
+
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_forward_xdl_cshuffle.hpp"
 
 #include "device_gemm_trait.h"
 
 namespace device_gemm_instance_generator {
-template<device_gemm_trait::Forward kForwardDeviceGemmTraits>
+
+
+template<typename DeviceGemmTraits>
 class ForwardDeviceGemmInstanceGenerator {
  public:
   // delete the default constructor
@@ -42,6 +46,6 @@ class ForwardDeviceGemmInstanceGenerator {
   auto get_instance_head_dim_128(const bool &is_deterministic, const bool &is_casual) const;
 
  private:
- 
+
 } // class ForwardDeviceGemmInstanceGenerator
 } // namespace device_gemm_instance_generator
