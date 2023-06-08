@@ -21,7 +21,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "fmha_dgrad_fp16_bf16_kernel.gfx90a.h"
+#include "fmha_fprop_fp16_bf16_kernel.gfx90a.h"
 
 #include "fmha.h"
 #include "fp16_switch.h"
@@ -30,8 +30,6 @@
 #include <initializer_list>
 #include <iostream>
 #include <numeric>
-
-
 
 class SimpleDeviceMem {
 public:
@@ -45,7 +43,6 @@ public:
 private:
     void* p_mem_;
 };
-
 
 template <typename InputType, 
           typename OutputType,

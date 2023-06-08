@@ -6,6 +6,8 @@
 // 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "fmha_dgrad_fp16_bf16_kernel.gfx90a.h"
+
 #include "fmha.h"
 #include "fp16_switch.h"
 
@@ -14,14 +16,6 @@
 #include <initializer_list>
 #include <cstdlib>
 
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-using MaskingSpecialization = ck::tensor_operation::device::MaskingSpecialization;
-
-static constexpr auto MaskingSpec_default = 
-    MaskingSpecialization::MaskDisabled;
-static constexpr auto MaskingSpec_causal =
-    MaskingSpecialization::MaskOutUpperTriangle;
 
 class SimpleDeviceMem {
 public:
@@ -44,47 +38,6 @@ template<typename InputType,
          ck::index_t CShuffleNXdlPerWavePerShuffle, typename CShuffleBlockTransferClusterLengths, 
          MaskingSpecialization MaskingSpec>
 void run_fmha_fp16_bf16_gfx90a_loop_(LaunchParams<FmhaFpropParams> &launch_params){
-    using F32 = float;
-    using INT32 = int;
-    using BF16 = ck::bhalf_t;
-    using FP16 = ck::half_t;
-
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-    using ADataType        = InputType;
-    using B0DataType       = InputType;
-    using B1DataType       = InputType;
-    using AccDataType      = F32;
-    using CShuffleDataType = F32;
-    using CDataType        = InputType;
-    using GemmDataType     = InputType;
-    using ZDataType        = INT32;
-    using LSEDataType      = F32;
-    using Acc0BiasDataType = ck::Tuple<>;
-    using Acc1BiasDataType = ck::Tuple<>;
-
-    static constexpr ck::index_t NumDimG = 2;
-    static constexpr ck::index_t NumDimM = 1;
-    static constexpr ck::index_t NumDimN = 1;
-    static constexpr ck::index_t NumDimK = 1;
-    static constexpr ck::index_t NumDimO = 1;
-
-    using AElementOp    = PassThrough;
-    using B0ElementOp   = PassThrough;
-    using Acc0ElementOp = ck::tensor_operation::element_wise::Scale;
-    using B1ElementOp   = PassThrough;
-    using CElementOp    = PassThrough;
-
-    static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKOPadding;
-
-    static constexpr auto TensorSpecA  = ck::tensor_operation::device::TensorSpecialization::Default;
-    static constexpr auto TensorSpecB0 = ck::tensor_operation::device::TensorSpecialization::Default;
-    static constexpr auto TensorSpecB1 = ck::tensor_operation::device::TensorSpecialization::Default;
-    static constexpr auto TensorSpecC  = ck::tensor_operation::device::TensorSpecialization::Default;
-
-    static constexpr bool deterministic = true;
-    static constexpr bool nondeterministic = false;
-    
     bool is_deterministic = launch_params.params.is_deterministic;
 
     //init the instance with parameters
