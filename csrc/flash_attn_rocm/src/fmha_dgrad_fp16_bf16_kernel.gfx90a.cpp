@@ -23,26 +23,15 @@
 
 #include "fmha_fprop_fp16_bf16_kernel.gfx90a.h"
 
-#include "fmha.h"
-#include "fp16_switch.h"
-
+#include <vector>
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
 #include <numeric>
 
-class SimpleDeviceMem {
-public:
-    SimpleDeviceMem() = delete;
-    explicit SimpleDeviceMem(std::size_t mem_size) : p_mem_{} {
-        (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size);
-    }
-    void* GetDeviceBuffer() const { return p_mem_; }
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
+#include "fmha.h"
+#include "fp16_switch.h"
 
-private:
-    void* p_mem_;
-};
 
 template <typename InputType, 
           typename OutputType,
