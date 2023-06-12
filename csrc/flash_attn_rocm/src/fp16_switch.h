@@ -35,3 +35,31 @@
             return __VA_ARGS__();                                                    \
         }                                                                            \
     }()
+
+#define BOOL_SWITCH(COND, CONST_NAME, F)       \
+    {                                          \
+        if (COND) {                            \
+            constexpr bool CONST_NAME = true;  \
+            F();                               \
+        } else {                               \
+            constexpr bool CONST_NAME = false; \
+            F();                               \
+        }                                      \
+    }
+
+// a function that mimics the BOOL_SWITCH macro
+// used in the fp16_switch.h
+template <bool COND, typename F>
+void bool_switch(F f) {
+    if constexpr (COND) {
+        f();
+    } else {
+        f();
+    }
+}
+
+
+// example usage of bool_switch
+// bool_switch<true>([]() {
+//     std::cout << "true" << std::endl;
+// });

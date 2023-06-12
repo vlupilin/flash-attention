@@ -247,10 +247,8 @@ using DeviceGemmHeadDim128 = device_op::DeviceGroupedMultiheadAttentionBackward_
 template<typename DeviceGemmTraits>
 class BwdDeviceGemmInstanceLauncher {
  public:
-  explicit BwdDeviceGemmInstanceLauncher(int head_dim) 
-          : device_gemm_instance_head_dim_32_ptr_(std::make_unique<DeviceGemmHeadDim32<DeviceGemmTraits>>{}),
-            device_gemm_instance_head_dim_64_ptr_(std::make_unique<DeviceGemmHeadDim64<DeviceGemmTraits>>{}),
-            device_gemm_instance_head_dim_128_ptr_(std::make_unique<DeviceGemmHeadDim128<DeviceGemmTraits>>{}) {}
+  // constructor
+  explicit BwdDeviceGemmInstanceLauncher(int head_dim, bool is_casual, bool is_deterministic);
   // get instance for head_dim = 32
   auto get_device_gemm_instance_head_dim_32_ptr() const { return device_gemm_instance_head_dim_32_ptr_ };
   // get instance for head_dim = 64
@@ -258,13 +256,12 @@ class BwdDeviceGemmInstanceLauncher {
   // get instance for head_dim = 128
   auto get_device_gemm_instance_head_dim_128_ptr() const { return device_gemm_instance_head_dim_128_ptr_ };
 
-  void LaunchBwdGemmInstanceHeadDim32(bool is_casual, bool is_deterministic);
-  void LaunchBwdGemmInstanceHeadDim64(bool is_casual, bool is_deterministic);
-  void LaunchBwdGemmInstanceHeadDim128(bool is_casual, bool is_deterministic);    
+  void LaunchBwdGemmInstance(bool is_casual, bool is_deterministic);
+
+  // destructor
+  ~BwdDeviceGemmInstanceLauncher() = default;
 
  private:
-  std::unique_ptr<DeviceGemmHeadDim32<DeviceGemmTraits>> device_gemm_instance_head_dim_32_ptr_;
-  std::unique_ptr<DeviceGemmHeadDim64<DeviceGemmTraits>> device_gemm_instance_head_dim_64_ptr_;
-  std::unique_ptr<DeviceGemmHeadDim128<DeviceGemmTraits>> device_gemm_instance_head_dim_128_ptr_;
+  std::unique_ptr<DeviceGemmHeadDim32<DeviceGemmTraits>> device_gemm_instance_ptr_;
 } // class BwdDeviceGemmInstanceLauncher
 } // namespace bwd_device_gemm

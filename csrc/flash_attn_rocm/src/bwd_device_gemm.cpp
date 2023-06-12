@@ -30,15 +30,15 @@
 #include "device_gemm_trait.h"
 
 namespace bwd_device_gemm {
+// BwdDeviceGemmInstanceLauncher constructor
+BwdDeviceGemmInstanceLauncher::BwdDeviceGemmInstanceLauncher(int head_dim, bool is_casual, bool is_deterministic) {
+  // Create the device gemm instances depending on the head dimension, causal and deterministic flags
+  
+} // end of BwdDeviceGemmInstanceLauncher constructor
+
+std::make_unique<DeviceGemmHeadDim32<DeviceGemmTraits>>{}
+
 // This is the entry point for the backward device gemm instance launcher
-void LaunchBwdGemmInstanceHeadDim32(bool is_casual, bool is_deterministic) {
-} // end of function LaunchBwdGemmInstanceHeadDim32
-
-void LaunchBwdGemmInstanceHeadDim64(bool is_casual, bool is_deterministic) {
-
-} // end of function LaunchBwdGemmInstanceHeadDim64
-
-void LaunchBwdGemmInstanceHeadDim128(bool is_casual, bool is_deterministic) {
-
-} // end of function LaunchBwdGemmInstanceHeadDim128
+void BwdDeviceGemmInstanceLauncher::LaunchBwdGemmInstanceHeadDim32(bool is_casual, bool is_deterministic) {
+} // end of function LaunchBwdGemmInstance
 } // namespace bwd_device_gemm
