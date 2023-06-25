@@ -491,101 +491,81 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
 
     // at::Tensor softmax_d = at::empty(dq.sizes(), dq.options()).contiguous();
     at::Tensor softmax_d;
-
+    at::Tensor dq_tmp;
+    at::Tensor dk_tmp;
+    at::Tensor dv_tmp;
+    if(!is_performance_mode){
+        dq_tmp = dq.to(torch::kFloat32);
+        dk_tmp = dk.to(torch::kFloat32);
+        dv_tmp = dv.to(torch::kFloat32);
+    }else if(q_dtype == torch::kBFloat16){
+        dq_tmp = dq.to(torch::kFloat16);
+        dk_tmp = dk.to(torch::kFloat16);
+        dv_tmp = dv.to(torch::kFloat16);
+    }else{
+        dq_tmp = dq;
+        dk_tmp = dk;
+        dv_tmp = dv;
+    }
     if (zero_tensors) {
-        dq.zero_();
-        dk.zero_();
-        dv.zero_();
+        dq_tmp.zero_();
+        dk_tmp.zero_();
+        dv_tmp.zero_();
         // softmax_d.zero_();
     }
     
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
         gen_, at::cuda::detail::getDefaultCUDAGenerator());
 
-    if(!is_performance_mode){
-        at::Tensor dq_tmp = at::empty(dq.sizes(), dq.options().dtype(at::kFloat)).contiguous();
-        at::Tensor dk_tmp = at::empty(dk.sizes(), dk.options().dtype(at::kFloat)).contiguous();
-        at::Tensor dv_tmp = at::empty(dv.sizes(), dv.options().dtype(at::kFloat)).contiguous();
-        dq_tmp.zero_();
-        dk_tmp.zero_();
-        dv_tmp.zero_();
-        set_params_dgrad(launch_params.params,
-                        batch_size,
-                        max_seqlen_q,
-                        max_seqlen_k,
-                        num_heads,
-                        head_size,
-                        q, k, v, out,
-                        dout, dq_tmp, dk_tmp, dv_tmp,
-                        cu_seqlens_q,
-                        cu_seqlens_k,
-                        nullptr,
-                        softmax_lse.data_ptr(),
-                        p_dropout,
-                        softmax_scale,
-                        is_causal,
-                        is_deterministic,
-                        is_performance_mode);
-        
-        if( is_dropout ) {
-            // See Note [Acquire lock when using random generators]
-            int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
-            std::lock_guard<std::mutex> lock(gen->mutex_);
-            launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
-        }
 
-        run_fmha_dgrad_fp16_bf16_gfx90a(launch_params);
-        if(!q.is_contiguous()){
-            dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
-        }
-        if(!k.is_contiguous()){
-            dk_tmp.copy_(torch::cat(launch_params.params.kgrad_tensors, 0).contiguous(), true);
-        }
-        if(!v.is_contiguous()){
-            dv_tmp.copy_(torch::cat(launch_params.params.vgrad_tensors, 0).contiguous(), true);
-        }
-
-        dq.copy_(dq_tmp, true);
-        dk.copy_(dk_tmp, true);
-        dv.copy_(dv_tmp, true);
-    }else{
-        set_params_dgrad(launch_params.params,
-                         batch_size,
-                         max_seqlen_q,
-                         max_seqlen_k,
-                         num_heads,
-                         head_size,
-                         q, k, v, out,
-                         dout, dq, dk, dv,
-                         cu_seqlens_q,
-                         cu_seqlens_k,
-                         nullptr,
-                         softmax_lse.data_ptr(),
-                         p_dropout,
-                         softmax_scale,
-                         is_causal,
-                         is_deterministic,
-                         is_performance_mode);
-        
-        if( is_dropout ) {
-            // See Note [Acquire lock when using random generators]
-            int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
-            std::lock_guard<std::mutex> lock(gen->mutex_);
-            launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
-        }
-
-        run_fmha_dgrad_fp16_bf16_gfx90a(launch_params);
-
-        if(!q.is_contiguous()){
-            dq.copy_(torch::cat(launch_params.params.qgrad_tensors, 0), true);
-        }
-        if(!k.is_contiguous()){
-            dk.copy_(torch::cat(launch_params.params.kgrad_tensors, 0), true);
-        }
-        if(!v.is_contiguous()){
-            dv.copy_(torch::cat(launch_params.params.vgrad_tensors, 0), true);
-        }
+    set_params_dgrad(launch_params.params,
+                    batch_size,
+                    max_seqlen_q,
+                    max_seqlen_k,
+                    num_heads,
+                    head_size,
+                    q, k, v, out,
+                    dout, dq_tmp, dk_tmp, dv_tmp,
+                    cu_seqlens_q,
+                    cu_seqlens_k,
+                    nullptr,
+                    softmax_lse.data_ptr(),
+                    p_dropout,
+                    softmax_scale,
+                    is_causal,
+                    is_deterministic,
+                    is_performance_mode);
+    
+    if( is_dropout ) {
+        // See Note [Acquire lock when using random generators]
+        int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
+        std::lock_guard<std::mutex> lock(gen->mutex_);
+        launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
     }
+
+    run_fmha_dgrad_fp16_bf16_gfx90a(launch_params);
+
+    if(!q.is_contiguous()){
+        dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
+    }
+    if(dq.data_ptr() != dq_tmp.data_ptr()){
+        dq.copy_(dq_tmp, true);
+    }
+    if(!k.is_contiguous()){
+        dk_tmp.copy_(torch::cat(launch_params.params.kgrad_tensors, 0).contiguous(), true);
+    }
+    if(dk.data_ptr() != dk_tmp.data_ptr()){
+        dk.copy_(dk_tmp, true);
+    }
+    if(!v.is_contiguous()){
+        dv_tmp.copy_(torch::cat(launch_params.params.vgrad_tensors, 0).contiguous(), true);
+    }
+    if(dv.data_ptr() != dv_tmp.data_ptr()){
+        dv.copy_(dv_tmp, true);
+    }
+
+    std::cout<<dq_tmp.mean()<<std::endl;
+    std::cout<<dq.mean()<<std::endl;
     return { dq, dk, dv, softmax_d };
 }
 
