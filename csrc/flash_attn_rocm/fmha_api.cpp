@@ -519,22 +519,22 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
 
 
     set_params_dgrad(launch_params.params,
-                    batch_size,
-                    max_seqlen_q,
-                    max_seqlen_k,
-                    num_heads,
-                    head_size,
-                    q, k, v, out,
-                    dout, dq_tmp, dk_tmp, dv_tmp,
-                    cu_seqlens_q,
-                    cu_seqlens_k,
-                    nullptr,
-                    softmax_lse.data_ptr(),
-                    p_dropout,
-                    softmax_scale,
-                    is_causal,
-                    is_deterministic,
-                    is_performance_mode);
+                     batch_size,
+                     max_seqlen_q,
+                     max_seqlen_k,
+                     num_heads,
+                     head_size,
+                     q, k, v, out,
+                     dout, dq_tmp, dk_tmp, dv_tmp,
+                     cu_seqlens_q,
+                     cu_seqlens_k,
+                     nullptr,
+                     softmax_lse.data_ptr(),
+                     p_dropout,
+                     softmax_scale,
+                     is_causal,
+                     is_deterministic,
+                     is_performance_mode);
     
     if( is_dropout ) {
         // See Note [Acquire lock when using random generators]
@@ -563,9 +563,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     if(dv.data_ptr() != dv_tmp.data_ptr()){
         dv.copy_(dv_tmp, true);
     }
-
-    std::cout<<dq_tmp.mean()<<std::endl;
-    std::cout<<dq.mean()<<std::endl;
+    
     return { dq, dk, dv, softmax_d };
 }
 
