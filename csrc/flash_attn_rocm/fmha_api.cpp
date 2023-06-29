@@ -6,10 +6,12 @@
 // 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "fmha.h"
+#include <memory>
+
+#include "run_fmha_fwd.gfx90a.h"
+#include "run_fmha_bwd.gfx90a.h"
 
 #define CHECK_SHAPE(x, ...) TORCH_CHECK(x.sizes() == torch::IntArrayRef({__VA_ARGS__}), #x " must have shape (" #__VA_ARGS__ ")")
-
 
 void set_params_fprop(FmhaFpropParams &params,
                       // sizes
@@ -19,28 +21,22 @@ void set_params_fprop(FmhaFpropParams &params,
                       const size_t h,
                       const size_t d,
                       // device pointers
-                      const at::Tensor& q,
-                      const at::Tensor& k,
-                      const at::Tensor& v,
+                      const at::Tensor &q,
+                      const at::Tensor &k,
+                      const at::Tensor &v,
                       at::Tensor& out,
-                      const at::Tensor& cu_seqlens_q,
-                      const at::Tensor& cu_seqlens_k,
+                      const at::Tensor &cu_seqlens_q,
+                      const at::Tensor &cu_seqlens_k,
                       void *o_tmp_d,
                       void *s_d,
                       void *softmax_lse_d,
                       float p_dropout,
-                      float softmax_scale,
-                      bool is_causal,
-                      bool is_deterministic,
-                      bool is_performance_mode) {
-
+                      float softmax_scale) {
     DataType acc_type = kFloat32;
     DataType data_type = !(q.dtype() == at::kBFloat16) ? kFloat16 : kBFloat16;
 
     // Reset the parameters
     memset(&params, 0, sizeof(params));
-
-    params.is_bf16 = (q.dtype() == at::kBFloat16);
 
     // S = softmax(P)     //TO DO
     // params.s_ptr = s_d;
@@ -122,9 +118,6 @@ void set_params_fprop(FmhaFpropParams &params,
 
     // Set this to probability of keeping an element to simplify things.
     params.p_dropout = p_dropout;
-    params.is_causal = is_causal;
-    params.is_deterministic = is_deterministic;
-    params.is_performance_mode = is_performance_mode;
 }
 
 void set_params_dgrad(FmhaDgradParams &params,
@@ -148,13 +141,10 @@ void set_params_dgrad(FmhaDgradParams &params,
                       void *s_d,
                       void *softmax_lse_d,
                       float p_dropout,
-                      float softmax_scale,
-                      bool is_causal,
-                      bool is_deterministic,
-                      bool is_performance_mode) {
+                      float softmax_scale) {
 
     DataType acc_type = kFloat32;
-    DataType data_type = q.dtype() == at::kBFloat16 ? kBFloat16 : kFloat16;
+    DataType data_type = (q.dtype() == at::kBFloat16 ? kBFloat16 : kFloat16);
 
     // Reset the parameters
     memset(&params, 0, sizeof(params));
@@ -162,8 +152,6 @@ void set_params_dgrad(FmhaDgradParams &params,
     dq_tmp.zero_();
     dk_tmp.zero_();
     dv_tmp.zero_();
-
-    params.is_bf16 = q.dtype() == at::kBFloat16;
 
     // params.cu_seqlens_q = static_cast<int *>(cu_seqlens_q_d);
     // params.cu_seqlens_k = static_cast<int *>(cu_seqlens_k_d);
@@ -275,9 +263,6 @@ void set_params_dgrad(FmhaDgradParams &params,
 
     // Set this to probability of keeping an element to simplify things.
     params.p_dropout = p_dropout;
-    params.is_causal = is_causal;
-    params.is_deterministic = is_deterministic;
-    params.is_performance_mode = is_performance_mode;
 }
 
 std::vector<at::Tensor>
@@ -298,12 +283,20 @@ mha_fwd(const at::Tensor &q,
         const bool return_softmax, // in rocm ,this will return the random number matrix when doing dropout
         const int num_splits,      // num_splits is not used in rocm
         c10::optional<at::Generator> gen_) {
+    auto q_dtype = q.dtype();
     auto dprops = at::cuda::getCurrentDeviceProperties();
     auto stream = at::cuda::getCurrentHIPStream().stream();
-    bool is_dropout = p_dropout > 0.0;
-    LaunchParams<FmhaFpropParams> launch_params(dprops, stream, is_dropout, return_softmax);
+    bool is_bf16 = (q.dtype == at::kBFloat16);
+    bool is_dropout = (p_dropout > 0.0);
 
-    auto q_dtype = q.dtype();
+    LaunchParams<FmhaFpropParams> launch_params(dprops, 
+                                                stream, 
+                                                is_dropout, 
+                                                return_softmax,
+                                                is_bf16,
+                                                is_causal,
+                                                is_deterministic,
+                                                is_performance_mode);
 
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16);
     TORCH_CHECK(k.dtype() == q_dtype);
@@ -383,10 +376,7 @@ mha_fwd(const at::Tensor &q,
                      //return_softmax ? z_device_buf.GetDeviceBuffer() : nullptr,
                      softmax_lse.data_ptr(),
                      p_dropout,
-                     softmax_scale,
-                     is_causal,
-                     is_deterministic,
-                     is_performance_mode);
+                     softmax_scale);
 
     // number of times random will be generated per thread, to offset philox counter in thc random
     // state
@@ -402,7 +392,8 @@ mha_fwd(const at::Tensor &q,
         launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
     }
 
-    run_fmha_fp16_bf16_gfx90a(launch_params);
+    auto fmha_fwd_runner_ptr = std::make_unique<fwd_device_gemm::FmhaFwdRunner>(launch_params);
+    fmha_fwd_runner->Run();
 
     std::vector<at::Tensor> result = {softmax_lse};
 
@@ -436,14 +427,19 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
         const int num_splits,
         c10::optional<at::Generator> gen_
 ) {
-    //std::cout << "bwd begin()" << std::endl;
+    auto q_dtype = q.dtype();
     auto dprops = at::cuda::getCurrentDeviceProperties();
-
+    bool is_bf16 = (q.dtype == at::kBFloat16);
     bool is_dropout = p_dropout > 0.0;
     auto stream = at::cuda::getCurrentHIPStream().stream();
-    LaunchParams<FmhaDgradParams> launch_params(dprops, stream, is_dropout, false);
-
-    auto q_dtype = q.dtype();
+    LaunchParams<FmhaDgradParams> launch_params(dprops, 
+                                                stream, 
+                                                is_dropout, 
+                                                false,
+                                                is_bf16,
+                                                is_causal,
+                                                is_deterministic,
+                                                is_performance_mode);
 
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16);
     TORCH_CHECK(k.dtype() == q_dtype);
@@ -557,10 +553,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
                      nullptr,
                      softmax_lse.data_ptr(),
                      p_dropout,
-                     softmax_scale,
-                     is_causal,
-                     is_deterministic,
-                     is_performance_mode);
+                     softmax_scale);
     
     if( is_dropout ) {
         // See Note [Acquire lock when using random generators]
@@ -569,7 +562,8 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
         launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
     }
 
-    run_fmha_dgrad_fp16_bf16_gfx90a(launch_params);
+    auto fmha_bwd_runner_ptr = std::make_unique<bwd_device_gemm::FmhaBwdRunner>(launch_params);
+    fmha_bwd_runner->Run();
 
     if(!q.is_contiguous()){
         dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
@@ -599,6 +593,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     }
 #endif
 
+#ifdef BUILD_TEST
 //main function to test with the API
 bool fwd_test(bool do_verification){
     int batch_size = 64;
@@ -1404,18 +1399,22 @@ bool bwd_test(bool do_verification){
     }
     return true;    
 }
+#endif
 
 
 int main(){
-    bool pass = true;
-    bool do_verification = true; // whether do verification
-    pass &= fwd_test(do_verification);
-    pass &= bwd_test(do_verification);
-    if(do_verification){
-        if(pass)
-            std::cout << "Verification passed!" <<std::endl;
-        else
-            std::cout << "Verification failed!" <<std::endl;
-    }
-    return pass ? 0 : 1;
+  bool pass = true;
+  bool do_verification = true; // whether do verification
+#ifdef BUILD_TEST
+  pass &= fwd_test(do_verification);
+  pass &= bwd_test(do_verification);
+  if(do_verification){
+      if(pass)
+          std::cout << "Verification passed!" <<std::endl;
+      else
+          std::cout << "Verification failed!" <<std::endl;
+  }
+#endif
+  return pass ? 0 : 1;
+
 }

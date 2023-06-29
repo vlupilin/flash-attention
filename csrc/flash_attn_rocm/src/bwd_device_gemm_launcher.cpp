@@ -25,32 +25,27 @@
 
 #include "bwd_device_gemm_launcher.h"
 
+#include <iostream>
+#include <vector>
 #include <memory>
+#include <numeric>
+#include <cstdlib>
+#include <initializer_list>
+
+#include "bwd_device_gemm_template.h"
+#include "device_gemm_trait.h"
+#include "launch_params.h"
+#include "device_memory_manager.h"
 
 namespace bwd_device_gemm {
-// BwdDeviceGemmInstanceLauncher constructor
-template <typename BwdDeviceGemmTraits>
-BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTraits>::BwdDeviceGemmInstanceLauncher(int head_dim) {
-  // Create the device gemm instances depending on the head dimension
-  if (head_dim <= 32) {
-    device_gemm_instance_ptr_ = std::make_unique<DeviceGemmHeadDim32<BwdDeviceGemmTraits>>{};
-  } else if (head_dim <= 64) {
-    device_gemm_instance_ptr_ = std::make_unique<DeviceGemmHeadDim64<BwdDeviceGemmTraits>>{};
-  } else if (head_dim <= 128) {
-    device_gemm_instance_ptr_ = std::make_unique<DeviceGemmHeadDim128<BwdDeviceGemmTraits>>{};
-  }
-} // end of BwdDeviceGemmInstanceLauncher constructor
-
-// This is the entry point for the backward device gemm instance launcher
-template <typename BwdDeviceGemmTraits>
-void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTraits>::Launch(const LaunchParams<FmhaDgradParams> &launch_params) {
-  bool is_deterministic = launch_params.params.is_deterministic;
+template <typename BwdDeviceGemmTemplate>
+void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>::Launch(const FmhaDgradParams &params) {
   bool time_kernel = false;
   bool input_permute = true;
   bool output_permute = true;
 
-  float alpha = launch_params.params.scale_bmm1f;
-  auto seeds = unpack(launch_params.params.philox_args);
+  float alpha = params.scale_bmm1f;
+  auto seeds = unpack(params.philox_args);
 
   auto seed_   = std::get<0>(seeds);
   auto offset_ = std::get<1>(seeds);
@@ -64,25 +59,25 @@ void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTraits>::Launch(const LaunchPara
   auto b1_element_op = QkvElementOp{};
   auto c_element_op = YElementOp{};
 
-  auto p_q = launch_params.params.q_ptr;
-  auto p_k = launch_params.params.k_ptr;
-  auto p_v = launch_params.params.v_ptr;
-  auto p_y = launch_params.params.y_ptr;
-  auto p_z = launch_params.params.z_ptr;
-  auto p_lse = launch_params.params.lse_ptr;
-  auto p_ygrad = launch_params.params.ygrad_ptr;
-  auto p_qgrad = launch_params.params.qgrad_ptr;
-  auto p_kgrad = launch_params.params.kgrad_ptr;
-  auto p_vgrad = launch_params.params.vgrad_ptr;
-  int batch_size = launch_params.params.b;
-  int num_heads = launch_params.params.h;
-  int head_dim = launch_params.params.d;
-  float dropout_ratio = launch_params.params.p_dropout;
-  std::vector<typename decltype(*device_gemm_instance_ptr_)::ProblemDesc> problem_descs;
+  auto p_q = params.q_ptr;
+  auto p_k = params.k_ptr;
+  auto p_v = params.v_ptr;
+  auto p_y = params.y_ptr;
+  auto p_z = params.z_ptr;
+  auto p_lse = params.lse_ptr;
+  auto p_ygrad = params.ygrad_ptr;
+  auto p_qgrad = params.qgrad_ptr;
+  auto p_kgrad = params.kgrad_ptr;
+  auto p_vgrad = params.vgrad_ptr;
+  int batch_size = params.b;
+  int num_heads = params.h;
+  int head_dim = params.d;
+  float dropout_ratio = params.p_dropout;
+  std::vector<typename BwdDeviceGemmTemplate::ProblemDesc> problem_descs;
 
   for (size_t i = 0; i < batch_size; i++) {
-    int M = launch_params.params.host_seqlens_q[i + 1] - launch_params.params.host_seqlens_q[i]; // seqlen Q
-    int N = launch_params.params.host_seqlens_k[i + 1] - launch_params.params.host_seqlens_k[i]; // seqlen K
+    int M = params.host_seqlens_q[i + 1] - params.host_seqlens_q[i]; // seqlen Q
+    int N = params.host_seqlens_k[i + 1] - params.host_seqlens_k[i]; // seqlen K
     int K = head_dim;
     int O = head_dim;
     int G0 = 1; // G0 = batch_size
@@ -179,5 +174,5 @@ void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTraits>::Launch(const LaunchPara
   if (time_kernel) {
     std::cout << "time elpase is " << ave_time << " ms" << std::endl;
   }
-} // end of function LaunchBwdGemmInstance
+} // end of function Launch
 } // namespace bwd_device_gemm

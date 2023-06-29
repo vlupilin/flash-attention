@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <torch/torch.h>
 
 #include "ck/ck.hpp"
 
@@ -28,8 +29,7 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define NEW_UNPACK (TORCH_VERSION_MAJOR * 10000 + TORCH_VERSION_MINOR * 100 + TORCH_VERSION_PATCH) > 11300
 
 #define FMHA_CHECK_HIP( call )                                                                     \
     do {                                                                                           \
@@ -44,34 +44,7 @@
         }                                                                                          \
     } while( 0 )
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 enum DataType {kFloat16, kFloat32, kBFloat16, kInt32, kInt8};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//static inline void set_alpha( uint32_t &alpha, float norm, Data_type dtype ) {
-//    if( dtype == DATA_TYPE_FP16 ) {
-//        ck::half_t x = ck::type_convert<ck::half_t>( norm );
-//        uint16_t h = reinterpret_cast<const uint16_t &>( x );
-//        ushort2 h2 = { h, h };
-//        alpha = reinterpret_cast<const uint32_t &>( h2 );
-//    } else if( dtype == DATA_TYPE_BF16 ) {
-//        ck::bhalf_t x = ck::type_convert<ck::bhalf_t>( norm );
-//        uint16_t h = reinterpret_cast<const uint16_t &>( x );
-//        ushort2 h2 = { h, h };
-//        alpha = reinterpret_cast<const uint32_t &>( h2 );
-//    } else if( dtype == DATA_TYPE_FP32 ) {
-//        alpha = reinterpret_cast<const uint32_t &>( norm );
-//    } else if( dtype == DATA_TYPE_INT32 ) {
-//        int32_t inorm = static_cast<int32_t>( norm );
-//        alpha = reinterpret_cast<const uint32_t &>( inorm );
-//    } else {
-//        assert( false );
-//    }
-//}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static inline size_t get_size_in_bytes( size_t n, DataType dtype ) {
     switch( dtype ) {
@@ -93,9 +66,16 @@ static inline size_t get_size_in_bytes( size_t n, DataType dtype ) {
 
 static std::tuple<uint64_t, uint64_t> unpack(at::PhiloxCudaState arg) {
   if (arg.captured_) {
+#if NEW_UNPACK
+    return std::make_tuple(static_cast<uint64_t>(*arg.seed_.ptr), static_cast<uint64_t>(*(arg.offset_.ptr) + arg.offset_intragraph_));
+#else
     return std::make_tuple(arg.seed_, static_cast<uint64_t>(*(arg.offset_.ptr) + arg.offset_intragraph_));
+#endif
   } else {
+#if NEW_UNPACK
+    return std::make_tuple(arg.seed_.val, arg.offset_.val);
+#else
     return std::make_tuple(arg.seed_, arg.offset_.val);
+#endif
   }
 }
-////////////////////////////////////////////////////////////////////////////////////////////////////

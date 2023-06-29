@@ -28,16 +28,18 @@
 template <typename Func>
 static inline void bf16_switch(bool cond, Func f) {
   if (cond) {
-    using DataType = device_gemm_trait::BFloat32;
+    using DataType = device_gemm_trait::BFloat16;
+    using DropoutType = device_gemm_trait::Int32;
     f();
   } else {
-    using DataType = device_gemm_trait::Float32;
+    using DataType = device_gemm_trait::Float16;
+    using DropoutType = device_gemm_trait::Int16;
     f();
   }
 }
 
 template <typename Func>
-static inline void casual_switch(bool cond, Func f) {
+static inline void causal_switch(bool cond, Func f) {
   if (cond) {
     constexpr bool kMaskingSpec = device_gemm_trait::kMaskingSpecCausal
     f();
@@ -57,3 +59,35 @@ static inline void deterministic_switch(bool cond, Func f) {
     f();
   }
 }
+
+namespace bwd_device_gemm {
+template <typename Func>
+static inline void headdim_switch(int headdim, Func f) {
+  if (headdim >= 128) {
+    template <typename DeviceGemmTraits>
+    using BwdDeviceGemm = DeviceGemmHeadDim128<DeviceGemmTraits>;
+  } else if (headdim >= 64) {
+    template <typename DeviceGemmTraits>
+    using BwdDeviceGemm = DeviceGemmHeadDim64<DeviceGemmTraits>;
+  } else {
+    template <typename DeviceGemmTraits>
+    using BwdDeviceGemm = DeviceGemmHeadDim32<DeviceGemmTraits>;
+  }
+}
+} // namespace bwd_device_gemm
+
+namespace fwd_device_gemm {
+template <typename Func>
+static inline void headdim_switch(int headdim, Func f) {
+  if (headdim >= 128) {
+    template <typename DeviceGemmTraits>
+    using FwdDeviceGemm = DeviceGemmHeadDim128<DeviceGemmTraits>;
+  } else if (headdim >= 64) {
+    template <typename DeviceGemmTraits>
+    using FwdDeviceGemm = DeviceGemmHeadDim64<DeviceGemmTraits>;
+  } else {
+    template <typename DeviceGemmTraits>
+    using FwdDeviceGemm = DeviceGemmHeadDim32<DeviceGemmTraits>;
+  }
+}
+} // namespace fwd_device_gemm

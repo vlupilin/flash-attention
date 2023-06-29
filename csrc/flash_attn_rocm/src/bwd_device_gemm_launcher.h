@@ -25,27 +25,24 @@
 
 #include <memory>
 
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v1.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v2.hpp"
-
 #include "bwd_device_gemm_template.h"
 #include "device_gemm_trait.h"
 #include "launch_params.h"
 
 namespace bwd_device_gemm {
-template <typename BwdDeviceGemmTraits>
+template <typename BwdDeviceGemmTemplate>
 class BwdDeviceGemmInstanceLauncher {
  public:
   // constructor
-  explicit BwdDeviceGemmInstanceLauncher(int head_dim);
+  explicit BwdDeviceGemmInstanceLauncher()
+    : device_gemm_instance_ptr_(std::make_unique<BwdDeviceGemmTemplate>()) {}
 
-  void Launch();
+  void Launch(const FmhaDgradParams &launch_params);
 
   // destructor
   ~BwdDeviceGemmInstanceLauncher() = default;
 
  private:
-  std::unique_ptr<DeviceGemmHeadDim32<BwdDeviceGemmTraits>> device_gemm_instance_ptr_;
+  std::unique_ptr<BwdDeviceGemmTemplate> device_gemm_instance_ptr_;
 } // class BwdDeviceGemmInstanceLauncher
 } // namespace bwd_device_gemm

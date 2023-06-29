@@ -28,6 +28,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_spec.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v2.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_forward_xdl_cshuffle.hpp"
 
 namespace device_gemm_trait {
 using Int32 = int;
@@ -89,6 +90,7 @@ struct Forward {
 }; // device gemm traits forward
 
 template <typename InputDataType_,
+          typename OutputDataType_,
           typename GemmDataType_,
           typename ZDataType_,
           Index kCShuffleBlockTransferScalarPerVectorNPerBlock_,
@@ -96,7 +98,7 @@ template <typename InputDataType_,
           bool kIsDeterministic_>
 struct Backward {
   using InputDataType    = InputDataType_;
-  using OutputDataType   = InputDataType_;
+  using OutputDataType   = OutputDataType_;
   using GemmDataType     = GemmDataType_;
   using ZDataType        = ZDataType_;
   using QkvElementOp     = PassThrough;
