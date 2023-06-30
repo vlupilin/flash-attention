@@ -30,16 +30,16 @@
 
 namespace bwd_device_gemm {
 void FmhaBwdRunner::Run() {
-  headdim_switch(params.d,
-  bf16_switch(is_bf16, 
-  causal_switch(is_causal, 
-  deterministic_switch(is_deterministic, [&] {
-    if (is_performance_mode) {
+  headdim_switch(params_.d,
+  bf16_switch(is_bf16_, 
+  causal_switch(is_causal_, 
+  deterministic_switch(is_deterministic_, [&]() {
+    if (is_performance_mode_) {
       // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
       using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, DataType, device_gemm_trait::BFloat16, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
       using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
       auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
-      bwd_device_gemm_instance_launcher_ptr->Launch(params);
+      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
     }
     // non-performance mode for unit test
     else {
@@ -47,7 +47,7 @@ void FmhaBwdRunner::Run() {
       using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, device_gemm_trait::Float32, DataType, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
       using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
       auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
-      bwd_device_gemm_instance_launcher_ptr->Launch(params);
+      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
     }
   }))));
 } // FmhaBwdRunner::Run()

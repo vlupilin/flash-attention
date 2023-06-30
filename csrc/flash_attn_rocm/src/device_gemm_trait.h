@@ -24,8 +24,8 @@
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_spec.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_spec.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v1.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_backward_xdl_cshuffle_v2.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_multihead_attention_forward_xdl_cshuffle.hpp"
@@ -39,9 +39,14 @@ using Float16 = ck::half_t;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Scale = ck::tensor_operation::element_wise::Scale;
 using MaskingSpec = ck::tensor_operation::device::MaskingSpecialization;
-using TensorSpec = ck::tensor_operation::device::TensorSpecialization;
-using GemmSpec = ck::tensor_operation::device::GemmSpecialization
+using TensorSpec  = ck::tensor_operation::device::TensorSpecialization;
+using GemmSpec  = ck::tensor_operation::device::GemmSpecialization;
 using Index = ck::index_t;
+using AElementOp  = PassThrough;
+using B0ElementOp = PassThrough;
+using Acc0ElementOp = Scale;
+using B1ElementOp = PassThrough;
+using CElementOp  = PassThrough;
 
 template <ck::index_t... Is> 
 using S = ck::Sequence<Is...>;

@@ -37,12 +37,12 @@ class BwdDeviceGemmInstanceLauncher {
   explicit BwdDeviceGemmInstanceLauncher()
     : device_gemm_instance_ptr_(std::make_unique<BwdDeviceGemmTemplate>()) {}
 
-  void Launch(const FmhaDgradParams &launch_params);
+  void Launch(const FmhaBwdParams &params);
 
   // destructor
   ~BwdDeviceGemmInstanceLauncher() = default;
 
  private:
   std::unique_ptr<BwdDeviceGemmTemplate> device_gemm_instance_ptr_;
-} // class BwdDeviceGemmInstanceLauncher
+}; // class BwdDeviceGemmInstanceLauncher
 } // namespace bwd_device_gemm

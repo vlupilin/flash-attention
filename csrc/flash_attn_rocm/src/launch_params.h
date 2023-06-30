@@ -49,7 +49,7 @@ struct QkvParams {
   int h;
 };
 
-struct FmhaFpropParams : public QkvParams {
+struct FmhaFwdParams : public QkvParams {
   // The O matrix (output).
   // void * __restrict__ o_ptr;
   std::vector<void*> o_ptr;
@@ -111,7 +111,7 @@ struct FmhaFpropParams : public QkvParams {
   int num_splits; // How many SMs per attention matrix.
 };
 
-struct FmhaDgradParams : public QkvParams {
+struct FmhaBwdParams : public QkvParams {
   // The O matrix (output).
   std::vector<const void*> y_ptr;
   std::vector<void*> z_ptr;

@@ -30,15 +30,15 @@
 
 namespace fwd_device_gemm {
 void FmhaFwdRunner::Run() {
-  headdim_switch(params.d,
-  bf16_switch(is_bf16, 
-  causal_switch(is_causal, 
-  deterministic_switch(is_deterministic, [&] {
+  headdim_switch(params_.d,
+  bf16_switch(is_bf16_, 
+  causal_switch(is_causal_, 
+  deterministic_switch(is_deterministic_, [&]() {
     // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
     using FwdDeviceGemmTraits = device_gemm_trait::Forward<DataType, kMaskingSpec, kIsDeterministic>;
     using FwdDeviceGemmTemplate = FwdDeviceGemm<FwdDeviceGemmTraits>;
     auto fwd_device_gemm_instance_launcher_ptr = std::make_unique<FwdDeviceGemmInstanceLauncher<FwdDeviceGemmTemplate>>();
-    fwd_device_gemm_instance_launcher_ptr->Launch(params);
+    fwd_device_gemm_instance_launcher_ptr->Launch(params_);
   }))));
 } // FmhaFwdRunner::Run()
 } // namespace fwd_device_gemm

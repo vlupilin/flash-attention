@@ -21,8 +21,6 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
 #include "bwd_device_gemm_launcher.h"
 
 #include <iostream>
@@ -39,7 +37,7 @@
 
 namespace bwd_device_gemm {
 template <typename BwdDeviceGemmTemplate>
-void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>::Launch(const FmhaDgradParams &params) {
+void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>::Launch(const FmhaBwdParams &params) {
   bool time_kernel = false;
   bool input_permute = true;
   bool output_permute = true;
@@ -53,11 +51,11 @@ void BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>::Launch(const FmhaDgra
   //std::cout << "bwd seed is " << seed_ ;
   //std::cout << " , bwd offset is " << offset_ << std::endl;
 
-  auto a_element_op = QkvElementOp{};
-  auto b0_element_op = QkvElementOp{};
-  auto acc0_element_op = Scale{alpha};
-  auto b1_element_op = QkvElementOp{};
-  auto c_element_op = YElementOp{};
+  auto a_element_op     = device_gemm_trait::AElementOp{};
+  auto b0_element_op    = device_gemm_trait::B0ElementOp{};
+  auto acc0_element_op  = device_gemm_trait::Acc0ElementOp{alpha};
+  auto b1_element_op    = device_gemm_trait::B1ElementOp{};
+  auto c_element_op     = device_gemm_trait::CElementOp{};
 
   auto p_q = params.q_ptr;
   auto p_k = params.k_ptr;

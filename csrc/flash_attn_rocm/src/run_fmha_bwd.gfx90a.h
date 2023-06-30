@@ -30,12 +30,12 @@ namespace bwd_device_gemm {
 class FmhaBwdRunner {
  public:
   // constructor
-  explicit FmhaBwdRunner(const LaunchParams<FmhaDgradParams> &launch_params)
-    : params(launch_params.params),
-      is_bf16(launch_params.is_bf16),
-      is_casual(launch_params.is_casual),
-      is_performance_mode(launch_params.is_performance_mode),
-      is_deterministic(launch_params.is_deterministic) {}
+  explicit FmhaBwdRunner(const LaunchParams<FmhaBwdParams> &launch_params)
+    : params_(launch_params.params),
+      is_bf16_(launch_params.is_bf16_),
+      is_causal_(launch_params.is_causal_),
+      is_performance_mode_(launch_params.is_performance_mode_),
+      is_deterministic_(launch_params.is_deterministic_) {}
   // run fmha bwd
   void Run();
   // destructor
@@ -43,10 +43,10 @@ class FmhaBwdRunner {
  
  private:
   // Todo: pass as a pointer
-  FmhaDgradParams &params;
-  bool is_bf16;
-  bool is_casual;
-  bool is_performance_mode;
-  bool is_deterministic;
-} // class FmhaBwdRunner
+  const FmhaBwdParams &params_;
+  bool is_bf16_;
+  bool is_causal_;
+  bool is_performance_mode_;
+  bool is_deterministic_;
+}; // class FmhaBwdRunner
 } // namespace bwd_device_gemm

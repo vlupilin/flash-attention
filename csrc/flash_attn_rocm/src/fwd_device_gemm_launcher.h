@@ -36,13 +36,13 @@ class FwdDeviceGemmInstanceLauncher {
   // constructor
   explicit FwdDeviceGemmInstanceLauncher()
     : device_gemm_instance_ptr_(std::make_unique<FwdDeviceGemmTemplate>()) {}
-
-  void Launch(const FmhaDgradParams &launch_params);
+  
+  void Launch(const FmhaFwdParams &params);
 
   // destructor
   ~FwdDeviceGemmInstanceLauncher() = default;
 
  private:
   std::unique_ptr<FwdDeviceGemmTemplate> device_gemm_instance_ptr_;
-} // class FwdDeviceGemmInstanceLauncher
+}; // class FwdDeviceGemmInstanceLauncher
 } // namespace fwd_device_gemm

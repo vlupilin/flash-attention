@@ -13,7 +13,7 @@
 
 #define CHECK_SHAPE(x, ...) TORCH_CHECK(x.sizes() == torch::IntArrayRef({__VA_ARGS__}), #x " must have shape (" #__VA_ARGS__ ")")
 
-void set_params_fprop(FmhaFpropParams &params,
+void set_params_fprop(FmhaFwdParams &params,
                       // sizes
                       const size_t b,
                       const size_t seqlen_q,
@@ -120,7 +120,7 @@ void set_params_fprop(FmhaFpropParams &params,
     params.p_dropout = p_dropout;
 }
 
-void set_params_dgrad(FmhaDgradParams &params,
+void set_params_dgrad(FmhaBwdParams &params,
                       // sizes
                       const size_t b,
                       const size_t seqlen_q,
@@ -286,17 +286,17 @@ mha_fwd(const at::Tensor &q,
     auto q_dtype = q.dtype();
     auto dprops = at::cuda::getCurrentDeviceProperties();
     auto stream = at::cuda::getCurrentHIPStream().stream();
-    bool is_bf16 = (q.dtype == at::kBFloat16);
+    bool is_bf16 = (q_dtype == at::kBFloat16);
     bool is_dropout = (p_dropout > 0.0);
 
-    LaunchParams<FmhaFpropParams> launch_params(dprops, 
-                                                stream, 
-                                                is_dropout, 
-                                                return_softmax,
-                                                is_bf16,
-                                                is_causal,
-                                                is_deterministic,
-                                                is_performance_mode);
+    LaunchParams<FmhaFwdParams> launch_params(dprops, 
+                                              stream, 
+                                              is_dropout, 
+                                              return_softmax,
+                                              is_bf16,
+                                              is_causal,
+                                              is_deterministic,
+                                              is_performance_mode);
 
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16);
     TORCH_CHECK(k.dtype() == q_dtype);
@@ -393,7 +393,7 @@ mha_fwd(const at::Tensor &q,
     }
 
     auto fmha_fwd_runner_ptr = std::make_unique<fwd_device_gemm::FmhaFwdRunner>(launch_params);
-    fmha_fwd_runner->Run();
+    fmha_fwd_runner_ptr->Run();
 
     std::vector<at::Tensor> result = {softmax_lse};
 
@@ -429,17 +429,17 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
 ) {
     auto q_dtype = q.dtype();
     auto dprops = at::cuda::getCurrentDeviceProperties();
-    bool is_bf16 = (q.dtype == at::kBFloat16);
+    bool is_bf16 = (q_dtype == at::kBFloat16);
     bool is_dropout = p_dropout > 0.0;
     auto stream = at::cuda::getCurrentHIPStream().stream();
-    LaunchParams<FmhaDgradParams> launch_params(dprops, 
-                                                stream, 
-                                                is_dropout, 
-                                                false,
-                                                is_bf16,
-                                                is_causal,
-                                                is_deterministic,
-                                                is_performance_mode);
+    LaunchParams<FmhaBwdParams> launch_params(dprops, 
+                                              stream, 
+                                              is_dropout, 
+                                              false,
+                                              is_bf16,
+                                              is_causal,
+                                              is_deterministic,
+                                              is_performance_mode);
 
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16);
     TORCH_CHECK(k.dtype() == q_dtype);
@@ -563,7 +563,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     }
 
     auto fmha_bwd_runner_ptr = std::make_unique<bwd_device_gemm::FmhaBwdRunner>(launch_params);
-    fmha_bwd_runner->Run();
+    fmha_bwd_runner_ptr->Run();
 
     if(!q.is_contiguous()){
         dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);

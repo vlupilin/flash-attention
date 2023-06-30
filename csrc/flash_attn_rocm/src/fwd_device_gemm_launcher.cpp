@@ -21,8 +21,6 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
 #include "fwd_device_gemm_launcher.h"
 
 #include <iostream>
@@ -37,19 +35,19 @@
 
 namespace fwd_device_gemm {
 template <typename FwdDeviceGemmTemplate>
-void FwdDeviceGemmInstanceLauncher<FwdDeviceGemmTemplate>::Launch(const FmhaFpropParams &params) {
-  bool time_kernel    = false;
+void FwdDeviceGemmInstanceLauncher<FwdDeviceGemmTemplate>::Launch(const FmhaFwdParams &params) {
+  bool time_kernel = false;
   bool input_permute = true;
   bool output_permute = true;
   bool z_tensor_permute = false;
 
   float alpha = params.scale_bmm1f;
 
-  auto a_element_op    = AElementOp{};
-  auto b0_element_op   = B0ElementOp{};
-  auto acc0_element_op = Acc0ElementOp{alpha};
-  auto b1_element_op   = B1ElementOp{};
-  auto c_element_op    = CElementOp{};
+  auto a_element_op     = device_gemm_trait::AElementOp{};
+  auto b0_element_op    = device_gemm_trait::B0ElementOp{};
+  auto acc0_element_op  = device_gemm_trait::Acc0ElementOp{alpha};
+  auto b1_element_op    = device_gemm_trait::B1ElementOp{};
+  auto c_element_op     = device_gemm_trait::CElementOp{};
 
   auto p_a = params.q_ptr;
   auto p_b0 = params.k_ptr;
