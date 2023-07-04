@@ -34,19 +34,16 @@ class FmhaFwdRunner {
     : params_(launch_params.params),
       is_bf16_(launch_params.is_bf16_),
       is_causal_(launch_params.is_causal_),
-      is_performance_mode_(launch_params.is_performance_mode_),
-      is_deterministic_(launch_params.is_deterministic_) {}
+      is_deterministic_(launch_params.is_deterministic_),
+      is_performance_mode_(launch_params.is_performance_mode_) {}
   // run fmha Fwd
   void Run();
-  // destructor
-  ~FmhaFwdRunner() = default;
  
- private:
-  // Todo: pass as a pointer
+ protected:
   const FmhaFwdParams &params_;
-  bool is_bf16_;
-  bool is_causal_;
-  bool is_performance_mode_;
-  bool is_deterministic_;
+  const bool is_bf16_;
+  const bool is_causal_;
+  const bool is_deterministic_;
+  const bool is_performance_mode_;
 }; // class FmhaFwdRunner
 } // namespace fwd_device_gemm

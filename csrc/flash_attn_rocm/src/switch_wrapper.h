@@ -26,49 +26,37 @@
 #include "device_gemm_trait.h"
 
 template <typename Func>
-inline Func bf16_switch(bool cond, Func f) {
+inline void bf16_switch(bool cond, Func f) {
   if (cond) {
-    return [&]() {
-      using DataType = device_gemm_trait::BFloat16;
-      using DropoutType = device_gemm_trait::Int32;
-      f();
-    };
+    using DataType = device_gemm_trait::BFloat16;
+    using DropoutType = device_gemm_trait::Int32;
+    f();
   } else {
-    return [&]() {
-      using DataType = device_gemm_trait::Float16;
-      using DropoutType = device_gemm_trait::Int16;
-      f();
-    };
+    using DataType = device_gemm_trait::Float16;
+    using DropoutType = device_gemm_trait::Int16;
+    f();
   }
 }
 
 template <typename Func>
-inline Func causal_switch(bool cond, Func f) {
+inline void causal_switch(bool cond, Func f) {
   if (cond) {
-    return [&]() {
-      constexpr auto kMaskingSpec = device_gemm_trait::kMaskingSpecCausal;
-      f();
-    };
+    constexpr auto kMaskingSpec = device_gemm_trait::kMaskingSpecCausal;
+    f();
   } else {
-    return [&]() {
-      constexpr auto kMaskingSpec = device_gemm_trait::kMaskingSpecDefault;
-      f();
-    };
+    constexpr auto kMaskingSpec = device_gemm_trait::kMaskingSpecDefault;
+    f();
   }
 }
 
 template <typename Func>
-inline Func deterministic_switch(bool cond, Func f) {
+inline void deterministic_switch(bool cond, Func f) {
   if (cond) {
-    return [&]() {
-      constexpr bool kIsDeterministic = device_gemm_trait::kDeterministic;
-      f();
-    };
+    constexpr bool kIsDeterministic = device_gemm_trait::kDeterministic;
+    f();
   } else {
-    return [&]() {
-      constexpr bool kIsDeterministic = device_gemm_trait::kNonDeterministic;
-      f();
-    };
+    constexpr bool kIsDeterministic = device_gemm_trait::kNonDeterministic;
+    f();
   }
 }
 

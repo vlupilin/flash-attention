@@ -30,19 +30,49 @@
 #include "launch_params.h"
 
 namespace bwd_device_gemm {
-template <typename BwdDeviceGemmTemplate>
-class BwdDeviceGemmInstanceLauncher {
+template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
+class BwdDeviceGemmInstanceLauncherBase {
  public:
   // constructor
-  explicit BwdDeviceGemmInstanceLauncher()
-    : device_gemm_instance_ptr_(std::make_unique<BwdDeviceGemmTemplate>()) {}
+  explicit BwdDeviceGemmInstanceLauncherBase()
+    : device_gemm_instance_ptr_(std::make_unique<DeviceGemmTemplate<DeviceGemmTraits>>()) {}
 
-  void Launch(const FmhaBwdParams &params);
+  virtual void Launch(const FmhaBwdParams &params) = 0;
 
-  // destructor
-  ~BwdDeviceGemmInstanceLauncher() = default;
-
- private:
-  std::unique_ptr<BwdDeviceGemmTemplate> device_gemm_instance_ptr_;
+ protected:
+  std::unique_ptr<DeviceGemmTemplate<DeviceGemmTraits>> device_gemm_instance_ptr_;
 }; // class BwdDeviceGemmInstanceLauncher
+
+template <typename DeviceGemmTraits>
+class BwdDeviceGemmInstanceLauncherHeadDim32
+    : public BwdDeviceGemmInstanceLauncherBase<DeviceGemmHeadDim32, DeviceGemmTraits> {
+ public:
+  // constructor
+  explicit BwdDeviceGemmInstanceLauncherHeadDim32()
+    : BwdDeviceGemmInstanceLauncherBase<DeviceGemmHeadDim32, DeviceGemmTraits>() {}
+
+  void Launch(const FmhaBwdParams &params) override;
+}; // class BwdDeviceGemmInstanceLauncherHeadDim32
+
+template <typename DeviceGemmTraits>
+class BwdDeviceGemmInstanceLauncherHeadDim64
+    : public BwdDeviceGemmInstanceLauncherBase<DeviceGemmHeadDim64, DeviceGemmTraits> {
+ public:
+  // constructor
+  explicit BwdDeviceGemmInstanceLauncherHeadDim64()
+    : BwdDeviceGemmInstanceLauncherBase<DeviceGemmHeadDim64, DeviceGemmTraits>() {}
+
+  void Launch(const FmhaBwdParams &params) override;
+}; // class BwdDeviceGemmInstanceLauncherHeadDim64
+
+template <typename DeviceGemmTraits>
+class BwdDeviceGemmInstanceLauncherHeadDim128
+    : public BwdDeviceGemmInstanceLauncherBase<DeviceGemmHeadDim128, DeviceGemmTraits> {
+ public:
+  // constructor
+  explicit BwdDeviceGemmInstanceLauncherHeadDim128()
+    : BwdDeviceGemmInstanceLauncherBase<DeviceGemmHeadDim128, DeviceGemmTraits>() {}
+
+  void Launch(const FmhaBwdParams &params) override;
+}; // class BwdDeviceGemmInstanceLauncherHeadDim128
 } // namespace bwd_device_gemm

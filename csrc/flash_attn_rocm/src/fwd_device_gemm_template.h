@@ -28,34 +28,34 @@
 namespace fwd_device_gemm {
 namespace device_op = ck::tensor_operation::device; // namespace alias for internal use
 // type alias for DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle with head_dim = 32
-template <typename FwdDeviceGemmTraits>
+template <typename DeviceGemmTraits>
 using DeviceGemmHeadDim32 = device_op::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
-        FwdDeviceGemmTraits::kNumDimG,
-        FwdDeviceGemmTraits::kNumDimM, 
-        FwdDeviceGemmTraits::kNumDimN, 
-        FwdDeviceGemmTraits::kNumDimK, 
-        FwdDeviceGemmTraits::kNumDimO, 
-        typename FwdDeviceGemmTraits::ADataType,
-        typename FwdDeviceGemmTraits::B0DataType,
-        typename FwdDeviceGemmTraits::B1DataType,
-        typename FwdDeviceGemmTraits::CDataType,
-        typename FwdDeviceGemmTraits::GemmDataType,
-        typename FwdDeviceGemmTraits::ZDataType,
-        typename FwdDeviceGemmTraits::LSEDataType,
-        typename FwdDeviceGemmTraits::Acc0BiasDataType,
-        typename FwdDeviceGemmTraits::Acc1BiasDataType,
-        typename FwdDeviceGemmTraits::AccDataType,
-        typename FwdDeviceGemmTraits::CShuffleDataType,
-        typename FwdDeviceGemmTraits::AElementOp,
-        typename FwdDeviceGemmTraits::B0ElementOp,
-        typename FwdDeviceGemmTraits::Acc0ElementOp,
-        typename FwdDeviceGemmTraits::B1ElementOp,
-        typename FwdDeviceGemmTraits::CElementOp,
-        FwdDeviceGemmTraits::kGemmSpec,
-        FwdDeviceGemmTraits::kTensorSpecA,
-        FwdDeviceGemmTraits::kTensorSpecB0,
-        FwdDeviceGemmTraits::kTensorSpecB1,
-        FwdDeviceGemmTraits::kTensorSpecC,
+        DeviceGemmTraits::kNumDimG,
+        DeviceGemmTraits::kNumDimM, 
+        DeviceGemmTraits::kNumDimN, 
+        DeviceGemmTraits::kNumDimK, 
+        DeviceGemmTraits::kNumDimO, 
+        typename DeviceGemmTraits::ADataType,
+        typename DeviceGemmTraits::B0DataType,
+        typename DeviceGemmTraits::B1DataType,
+        typename DeviceGemmTraits::CDataType,
+        typename DeviceGemmTraits::GemmDataType,
+        typename DeviceGemmTraits::ZDataType,
+        typename DeviceGemmTraits::LSEDataType,
+        typename DeviceGemmTraits::Acc0BiasDataType,
+        typename DeviceGemmTraits::Acc1BiasDataType,
+        typename DeviceGemmTraits::AccDataType,
+        typename DeviceGemmTraits::CShuffleDataType,
+        typename DeviceGemmTraits::AElementOp,
+        typename DeviceGemmTraits::B0ElementOp,
+        typename DeviceGemmTraits::Acc0ElementOp,
+        typename DeviceGemmTraits::B1ElementOp,
+        typename DeviceGemmTraits::CElementOp,
+        DeviceGemmTraits::kGemmSpec,
+        DeviceGemmTraits::kTensorSpecA,
+        DeviceGemmTraits::kTensorSpecB0,
+        DeviceGemmTraits::kTensorSpecB1,
+        DeviceGemmTraits::kTensorSpecC,
         1,
         256,
         128,   // MPerBlock
@@ -96,37 +96,37 @@ using DeviceGemmHeadDim32 = device_op::DeviceGroupedMultiheadAttentionForward_Xd
         1,        // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 64, 1, 4>,  // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,                                    // CShuffleBlockTransferScalarPerVector_NPerBlock
-        FwdDeviceGemmTraits::kMaskingSpec,                      // MaskingSpecialization
-        FwdDeviceGemmTraits::kIsDeterministic>;
+        DeviceGemmTraits::kMaskingSpec,                      // MaskingSpecialization
+        DeviceGemmTraits::kIsDeterministic>;
 // type alias for DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle with head_dim = 64
-template <typename FwdDeviceGemmTraits>
+template <typename DeviceGemmTraits>
 using DeviceGemmHeadDim64 = device_op::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
-        FwdDeviceGemmTraits::kNumDimG, 
-        FwdDeviceGemmTraits::kNumDimM, 
-        FwdDeviceGemmTraits::kNumDimN, 
-        FwdDeviceGemmTraits::kNumDimK, 
-        FwdDeviceGemmTraits::kNumDimO, 
-        typename FwdDeviceGemmTraits::ADataType,
-        typename FwdDeviceGemmTraits::B0DataType,
-        typename FwdDeviceGemmTraits::B1DataType,
-        typename FwdDeviceGemmTraits::CDataType,
-        typename FwdDeviceGemmTraits::GemmDataType,
-        typename FwdDeviceGemmTraits::ZDataType,
-        typename FwdDeviceGemmTraits::LSEDataType,
-        typename FwdDeviceGemmTraits::Acc0BiasDataType,
-        typename FwdDeviceGemmTraits::Acc1BiasDataType,
-        typename FwdDeviceGemmTraits::AccDataType,
-        typename FwdDeviceGemmTraits::CShuffleDataType,
-        typename FwdDeviceGemmTraits::AElementOp,
-        typename FwdDeviceGemmTraits::B0ElementOp,
-        typename FwdDeviceGemmTraits::Acc0ElementOp,
-        typename FwdDeviceGemmTraits::B1ElementOp,
-        typename FwdDeviceGemmTraits::CElementOp,
-        FwdDeviceGemmTraits::kGemmSpec,
-        FwdDeviceGemmTraits::kTensorSpecA,
-        FwdDeviceGemmTraits::kTensorSpecB0,
-        FwdDeviceGemmTraits::kTensorSpecB1,
-        FwdDeviceGemmTraits::kTensorSpecC,
+        DeviceGemmTraits::kNumDimG, 
+        DeviceGemmTraits::kNumDimM, 
+        DeviceGemmTraits::kNumDimN, 
+        DeviceGemmTraits::kNumDimK, 
+        DeviceGemmTraits::kNumDimO, 
+        typename DeviceGemmTraits::ADataType,
+        typename DeviceGemmTraits::B0DataType,
+        typename DeviceGemmTraits::B1DataType,
+        typename DeviceGemmTraits::CDataType,
+        typename DeviceGemmTraits::GemmDataType,
+        typename DeviceGemmTraits::ZDataType,
+        typename DeviceGemmTraits::LSEDataType,
+        typename DeviceGemmTraits::Acc0BiasDataType,
+        typename DeviceGemmTraits::Acc1BiasDataType,
+        typename DeviceGemmTraits::AccDataType,
+        typename DeviceGemmTraits::CShuffleDataType,
+        typename DeviceGemmTraits::AElementOp,
+        typename DeviceGemmTraits::B0ElementOp,
+        typename DeviceGemmTraits::Acc0ElementOp,
+        typename DeviceGemmTraits::B1ElementOp,
+        typename DeviceGemmTraits::CElementOp,
+        DeviceGemmTraits::kGemmSpec,
+        DeviceGemmTraits::kTensorSpecA,
+        DeviceGemmTraits::kTensorSpecB0,
+        DeviceGemmTraits::kTensorSpecB1,
+        DeviceGemmTraits::kTensorSpecC,
         1,
         256,
         128,         // MPerBlock
@@ -167,37 +167,37 @@ using DeviceGemmHeadDim64 = device_op::DeviceGroupedMultiheadAttentionForward_Xd
         2,        // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 32, 1, 8>,  // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,                                    // CShuffleBlockTransferScalarPerVector_NPerBlock
-        FwdDeviceGemmTraits::kMaskingSpec,                      // MaskingSpecialization
-        FwdDeviceGemmTraits::kIsDeterministic>;
+        DeviceGemmTraits::kMaskingSpec,                      // MaskingSpecialization
+        DeviceGemmTraits::kIsDeterministic>;
 // type alias for DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle with head_dim = 128
-template <typename FwdDeviceGemmTraits>
+template <typename DeviceGemmTraits>
 using DeviceGemmHeadDim128 = device_op::DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle<
-        FwdDeviceGemmTraits::kNumDimG, 
-        FwdDeviceGemmTraits::kNumDimM, 
-        FwdDeviceGemmTraits::kNumDimN, 
-        FwdDeviceGemmTraits::kNumDimK, 
-        FwdDeviceGemmTraits::kNumDimO, 
-        typename FwdDeviceGemmTraits::ADataType,
-        typename FwdDeviceGemmTraits::B0DataType,
-        typename FwdDeviceGemmTraits::B1DataType,
-        typename FwdDeviceGemmTraits::CDataType,
-        typename FwdDeviceGemmTraits::GemmDataType,
-        typename FwdDeviceGemmTraits::ZDataType,
-        typename FwdDeviceGemmTraits::LSEDataType,
-        typename FwdDeviceGemmTraits::Acc0BiasDataType,
-        typename FwdDeviceGemmTraits::Acc1BiasDataType,
-        typename FwdDeviceGemmTraits::AccDataType,
-        typename FwdDeviceGemmTraits::CShuffleDataType,
-        typename FwdDeviceGemmTraits::AElementOp,
-        typename FwdDeviceGemmTraits::B0ElementOp,
-        typename FwdDeviceGemmTraits::Acc0ElementOp,
-        typename FwdDeviceGemmTraits::B1ElementOp,
-        typename FwdDeviceGemmTraits::CElementOp,
-        FwdDeviceGemmTraits::kGemmSpec,
-        FwdDeviceGemmTraits::kTensorSpecA,
-        FwdDeviceGemmTraits::kTensorSpecB0,
-        FwdDeviceGemmTraits::kTensorSpecB1,
-        FwdDeviceGemmTraits::kTensorSpecC,
+        DeviceGemmTraits::kNumDimG, 
+        DeviceGemmTraits::kNumDimM, 
+        DeviceGemmTraits::kNumDimN, 
+        DeviceGemmTraits::kNumDimK, 
+        DeviceGemmTraits::kNumDimO, 
+        typename DeviceGemmTraits::ADataType,
+        typename DeviceGemmTraits::B0DataType,
+        typename DeviceGemmTraits::B1DataType,
+        typename DeviceGemmTraits::CDataType,
+        typename DeviceGemmTraits::GemmDataType,
+        typename DeviceGemmTraits::ZDataType,
+        typename DeviceGemmTraits::LSEDataType,
+        typename DeviceGemmTraits::Acc0BiasDataType,
+        typename DeviceGemmTraits::Acc1BiasDataType,
+        typename DeviceGemmTraits::AccDataType,
+        typename DeviceGemmTraits::CShuffleDataType,
+        typename DeviceGemmTraits::AElementOp,
+        typename DeviceGemmTraits::B0ElementOp,
+        typename DeviceGemmTraits::Acc0ElementOp,
+        typename DeviceGemmTraits::B1ElementOp,
+        typename DeviceGemmTraits::CElementOp,
+        DeviceGemmTraits::kGemmSpec,
+        DeviceGemmTraits::kTensorSpecA,
+        DeviceGemmTraits::kTensorSpecB0,
+        DeviceGemmTraits::kTensorSpecB1,
+        DeviceGemmTraits::kTensorSpecC,
         1,
         256,
         128,         // MPerBlock
@@ -238,6 +238,6 @@ using DeviceGemmHeadDim128 = device_op::DeviceGroupedMultiheadAttentionForward_X
         2,        // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 32, 1, 8>,  // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         8,                                    // CShuffleBlockTransferScalarPerVector_NPerBlock
-        FwdDeviceGemmTraits::kMaskingSpec,                      // MaskingSpecialization
-        FwdDeviceGemmTraits::kIsDeterministic>;                       // MaskingSpecialization
+        DeviceGemmTraits::kMaskingSpec,                      // MaskingSpecialization
+        DeviceGemmTraits::kIsDeterministic>;                       // MaskingSpecialization
 } // namespace fwd_device_gemm

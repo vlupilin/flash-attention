@@ -34,19 +34,35 @@ class FmhaBwdRunner {
     : params_(launch_params.params),
       is_bf16_(launch_params.is_bf16_),
       is_causal_(launch_params.is_causal_),
-      is_performance_mode_(launch_params.is_performance_mode_),
-      is_deterministic_(launch_params.is_deterministic_) {}
+      is_deterministic_(launch_params.is_deterministic_),
+      is_performance_mode_(launch_params.is_performance_mode_) {}
   // run fmha bwd
   void Run();
-  // destructor
-  ~FmhaBwdRunner() = default;
  
- private:
-  // Todo: pass as a pointer
+ protected:
   const FmhaBwdParams &params_;
-  bool is_bf16_;
-  bool is_causal_;
-  bool is_performance_mode_;
-  bool is_deterministic_;
+  const bool is_bf16_;
+  const bool is_causal_;
+  const bool is_deterministic_;
+  const bool is_performance_mode_;
+
+  template <typename DataType, typename DropoutType, bool kIsDeterministic, bool kMaskingSpec>
+  void run_() {
+    if (is_performance_mode_) {
+      // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
+      using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, DataType, device_gemm_trait::BFloat16, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
+      using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
+      auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
+      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
+    }
+    // non-performance mode for unit test
+    else {
+      // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
+      using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, device_gemm_trait::Float32, DataType, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
+      using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
+      auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
+      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
+    }
+  }
 }; // class FmhaBwdRunner
 } // namespace bwd_device_gemm
