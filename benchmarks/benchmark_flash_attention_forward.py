@@ -8,7 +8,7 @@ from einops import rearrange, repeat
 
 from flash_attn.utils.benchmark import benchmark_all, benchmark_forward, benchmark_backward, benchmark_combined
 from flash_attn.bert_padding import unpad_input, pad_input
-from flash_attn.flash_attn_interface import flash_attn_unpadded_qkvpacked_func
+from flash_attn.flash_attn_interface import flash_attn_unpadded_qkvpacked_func, flash_attn_triton
 
 
 def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
@@ -69,10 +69,22 @@ for bs in batch_size:
         qkv = rearrange(Wqkv(x), 'b s (t h d) -> b s t h d', t=3, h=nheads).detach().requires_grad_()
 
         print(f'Batch size: {bs}, Sequence Length: {sq}')
-        
-        fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
-            qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
-        )
+
+        # fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
+        #     qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
+        # )
+
+        q, k, v = qkv.unbind(dim=2)
+        q = torch.transpose(q, 1, 2)
+        k = torch.transpose(k, 1, 2)
+        v = torch.transpose(v, 1, 2)
+        sm_scale = q.shape[-1] ** (-0.5)
+
+        fn = lambda flash_triton:flash_attn_triton(q, k, v, 1.3)
+
+        # fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
+        #     qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
+        # )
         fa_time,fa_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='FlashAttention')
         fn = lambda qkv: attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
         pyt_time,pyt_measurement = benchmark_forward(fn, qkv, repeats=repeats, desc='PyTorch Standard Attention')
