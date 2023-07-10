@@ -79,15 +79,17 @@ for bs in batch_size:
         k = torch.transpose(k, 1, 2)
         v = torch.transpose(v, 1, 2)
         sm_scale = q.shape[-1] ** (-0.5)
-
+        qkv_triton = torch.stack([q, k, v], dim=2)
+    
         fn = lambda flash_triton:flash_attn_triton(q, k, v, 1.3)
 
-        # fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
-        #     qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
-        # )
-        fa_time,fa_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='FlashAttention')
-        fn = lambda qkv: attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
-        pyt_time,pyt_measurement = benchmark_forward(fn, qkv, repeats=repeats, desc='PyTorch Standard Attention')
+        fa_time,fa_measurement = benchmark_forward(fn, qkv_triton, repeats=repeats, desc='FlashAttention triton')
+        # fn = lambda qkv: attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
+        fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
+            qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
+        )
+
+        pyt_time,pyt_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='CK Attention')
 
         relative_perf = ((pyt_measurement.mean-fa_measurement.mean)/pyt_measurement.mean) * 100
 
