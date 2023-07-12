@@ -82,7 +82,7 @@ for bs in batch_size:
         qkv_triton = torch.stack([q, k, v], dim=2)
 
         ## Triton FA implementation
-        fn = lambda flash_triton:flash_attn_triton(q, k, v, 1.3)
+        fn = lambda flash_triton:flash_attn_triton(q, k, v, causal, 1.3)
         fa_time,fa_measurement = benchmark_forward(fn, qkv_triton, repeats=20, desc='FlashAttention triton', verbose=False)
 
         ## Pytorch standard FA implementation
@@ -101,8 +101,8 @@ for bs in batch_size:
         triton_time = fa_measurement.mean;
         flops_per_matmul = 2. * bs * nheads * sq * sq * d
         total_flops = 2 * flops_per_matmul
-        # For the old FA tutorial, causal = true and mode = 1
-        total_flops *= .5
+        if causal:
+            total_flops *= .5
         triton_tflops = total_flops / triton_time * 1e-12
         print(f'{sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
         result_summary.append([bs,sq,triton_time*1e3])
