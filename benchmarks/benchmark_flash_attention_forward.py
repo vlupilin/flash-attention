@@ -37,12 +37,12 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 
 
 torch.manual_seed(0)
-repeats = 250
-batch_size = [1,32,64,128]
-nheads = 16
-seqlen = [1024,2048,4096]
-n = 1024
-d = n // nheads
+repeats = 20
+batch_size = [4]
+nheads = 48
+seqlen = [1024,2048,4096,8192,16384]
+n = 3072
+d = n // nheads # 64
 dropout_p = 0.1
 causal = False
 dtype = torch.float16
@@ -68,7 +68,7 @@ for bs in batch_size:
                               h=nheads).detach().requires_grad_()
         qkv = rearrange(Wqkv(x), 'b s (t h d) -> b s t h d', t=3, h=nheads).detach().requires_grad_()
 
-        print(f'Batch size: {bs}, Sequence Length: {sq}')
+        #print(f'Batch size: {bs}, Sequence Length: {sq}')
 
         # fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
         #     qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
@@ -80,21 +80,34 @@ for bs in batch_size:
         v = torch.transpose(v, 1, 2)
         sm_scale = q.shape[-1] ** (-0.5)
         qkv_triton = torch.stack([q, k, v], dim=2)
-    
+
+        ## Triton FA implementation
         fn = lambda flash_triton:flash_attn_triton(q, k, v, 1.3)
+        fa_time,fa_measurement = benchmark_forward(fn, qkv_triton, repeats=20, desc='FlashAttention triton', verbose=False)
 
-        fa_time,fa_measurement = benchmark_forward(fn, qkv_triton, repeats=repeats, desc='FlashAttention triton')
+        ## Pytorch standard FA implementation
         # fn = lambda qkv: attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
-        fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
-            qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
-        )
+        ## CK FA implementation
+        # fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
+        #     qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
+        # )
+        # pyt_time,pyt_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='CK Attention')
 
-        pyt_time,pyt_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='CK Attention')
+        # relative_perf = ((pyt_measurement.mean-fa_measurement.mean)/pyt_measurement.mean) * 100
 
-        relative_perf = ((pyt_measurement.mean-fa_measurement.mean)/pyt_measurement.mean) * 100
+        # result_summary.append([bs,sq,pyt_measurement.mean,fa_measurement.mean,relative_perf])
 
-        result_summary.append([bs,sq,pyt_measurement.mean,fa_measurement.mean,relative_perf])
-        
-        print(f'Flash Attention Speedup: {relative_perf}\n')
+        ## Measure time and compute tflops
+        triton_time = fa_measurement.mean;
+        flops_per_matmul = 2. * bs * nheads * sq * sq * d
+        total_flops = 2 * flops_per_matmul
+        # For the old FA tutorial, causal = true and mode = 1
+        total_flops *= .5
+        triton_tflops = total_flops / triton_time * 1e-12
+        print(f'{sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
+        result_summary.append([bs,sq,triton_time*1e3])
 
-print(f'batch size, sequence length, PyTorch Standard Attention, FlashAttention, speedup relative to PyTorch\n {result_summary}')
+        # print(f'Flash Attention Speedup: {relative_perf}\n')
+
+# print(f'batch size, sequence length, PyTorch Standard Attention, FlashAttention, speedup relative to PyTorch\n {result_summary}')
+#print(f'batch size, sequence length, Triton FlashAttention\n {result_summary}')

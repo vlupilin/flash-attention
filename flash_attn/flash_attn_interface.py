@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import flash_attn_cuda
+#import flash_attn_cuda
 import triton
 import triton.language as tl
 
@@ -229,7 +229,7 @@ class _attention_triton(torch.autograd.Function):
             q.shape[0], q.shape[1], q.shape[2],
             BLOCK_M=BLOCK, BLOCK_N=BLOCK,
             BLOCK_DMODEL=Lk, num_warps=num_warps,
-            num_stages=2,
+            num_stages=1,
         )
         # print(h.asm["ttgir"])
 
