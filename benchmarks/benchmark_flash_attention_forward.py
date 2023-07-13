@@ -37,14 +37,15 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 
 
 torch.manual_seed(0)
-repeats = 250
-batch_size = [1,32,64,128]
-nheads = 16
+repeats = 20
+batch_size = [4]
+nheads = 48
 seqlen = [1024,2048,4096]
-n = 1024
-d = n // nheads
+#seqlen = [8192,16384]
+n = 3072
+d = n // nheads # 64
 dropout_p = 0.1
-causal = False
+causal = True
 dtype = torch.float16
 device = 'cuda'
 
@@ -68,19 +69,30 @@ for bs in batch_size:
                               h=nheads).detach().requires_grad_()
         qkv = rearrange(Wqkv(x), 'b s (t h d) -> b s t h d', t=3, h=nheads).detach().requires_grad_()
 
-        print(f'Batch size: {bs}, Sequence Length: {sq}')
+        #print(f'Batch size: {bs}, Sequence Length: {sq}')
         
         fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
             qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
         )
-        fa_time,fa_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='FlashAttention')
+        fa_time,fa_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='FlashAttention', verbose=False)
+
+
         fn = lambda qkv: attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
-        pyt_time,pyt_measurement = benchmark_forward(fn, qkv, repeats=repeats, desc='PyTorch Standard Attention')
+        pyt_time,pyt_measurement = benchmark_forward(fn, qkv, repeats=repeats, desc='PyTorch Standard Attention', verbose=False)
 
         relative_perf = ((pyt_measurement.mean-fa_measurement.mean)/pyt_measurement.mean) * 100
 
         result_summary.append([bs,sq,pyt_measurement.mean,fa_measurement.mean,relative_perf])
         
-        print(f'Flash Attention Speedup: {relative_perf}\n')
+        #print(f'Flash Attention Speedup: {relative_perf}\n')
 
-print(f'batch size, sequence length, PyTorch Standard Attention, FlashAttention, speedup relative to PyTorch\n {result_summary}')
+        flops_per_matmul = 2. * bs * nheads * sq * sq * d
+        total_flops = 2 * flops_per_matmul
+        if causal:
+            total_flops *= .5
+        ck_tflops = total_flops / fa_measurement.mean * 1e-12
+        pyt_tflops = total_flops / pyt_measurement.mean * 1e-12
+
+        print(f'{sq:10d} {ck_tflops:.2f} {pyt_tflops:.2f}')
+
+#print(f'batch size, sequence length, PyTorch Standard Attention, FlashAttention, speedup relative to PyTorch\n {result_summary}')
