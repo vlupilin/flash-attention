@@ -37,7 +37,7 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 
 
 torch.manual_seed(0)
-repeats = 250
+repeats = 25
 
 dropout_p = 0.1
 causal = False
@@ -137,4 +137,3 @@ for bs in batch_size:
             total_flops *= .5
         triton_tflops = total_flops / triton_time * 1e-12
         print(f'{bs:3d}  {sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
-
