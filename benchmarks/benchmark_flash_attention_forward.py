@@ -104,7 +104,7 @@ for bs in batch_size:
         if causal:
             total_flops *= .5
         triton_tflops = total_flops / triton_time * 1e-12
-        print(f'{sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
+        print(f'{bs:3d}  {sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
         result_summary.append([bs,sq,triton_time*1e3])
 
         # print(f'Flash Attention Speedup: {relative_perf}\n')

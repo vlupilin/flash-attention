@@ -70,20 +70,15 @@ def _fwd_kernel(
         if MODE == 1:
             qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
         # -- compute m_ij, p, l_ij
-        m_ij = tl.max(qk, 1)
+        m_ij = tl.maximum(m_i, tl.max(qk, 1))
         p = tl.math.exp2(qk - m_ij[:, None])
         l_ij = tl.sum(p, 1)
         # -- update m_i and l_i
-        m_i_new = tl.maximum(m_i, m_ij)
-        alpha = tl.math.exp2(m_i - m_i_new)
-        beta = tl.math.exp2(m_ij - m_i_new)
+        alpha = tl.math.exp2(m_i - m_ij)
         l_i *= alpha
-        l_i_new = l_i + beta * l_ij
-        # scale p
-        p_scale = beta / l_i_new
-        p = p * p_scale[:, None]
+        l_i_new = l_i + l_ij
         # scale acc
-        acc_scale = l_i / l_i_new
+        acc_scale = l_i * 0 + alpha
         acc = acc * acc_scale[:, None]
         # update acc
         v = tl.load(v_ptrs)
@@ -91,11 +86,12 @@ def _fwd_kernel(
         acc += tl.dot(p, v)
         # update m_i and l_i
         l_i = l_i_new
-        m_i = m_i_new
+        m_i = m_ij
         # update pointers
         k_ptrs += BLOCK_N * stride_kn
         v_ptrs += BLOCK_N * stride_vk
     # write back l and m
+    acc = acc / l_i[:, None]
     l_ptrs = L + off_hz * N_CTX + offs_m
     m_ptrs = M + off_hz * N_CTX + offs_m
     tl.store(l_ptrs, l_i)
@@ -224,7 +220,9 @@ class _attention_triton(torch.autograd.Function):
         assert Lq == Lk and Lk == Lv
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
-        grid = (triton.cdiv(q.shape[2], BLOCK), q.shape[0] * q.shape[1], 1)
+        BLOCK_M = 128
+        BLOCK_N = 64
+        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         m = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
@@ -243,7 +241,7 @@ class _attention_triton(torch.autograd.Function):
                 v.stride(0), v.stride(1), v.stride(2), v.stride(3),
                 o.stride(0), o.stride(1), o.stride(2), o.stride(3),
                 q.shape[0], q.shape[1], q.shape[2],
-                BLOCK_M=BLOCK, BLOCK_N=BLOCK,
+                BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N,
                 BLOCK_DMODEL=Lk, MODE=mode, num_warps=num_warps,
                 num_stages=1,
             )
