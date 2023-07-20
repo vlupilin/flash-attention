@@ -47,7 +47,6 @@ def _fwd_kernel(
     Z, H, N_CTX,
     BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
     BLOCK_N: tl.constexpr,
-    MODE: tl.constexpr
 ):
     start_m = tl.program_id(0)
     off_hz = tl.program_id(1)
@@ -64,61 +63,48 @@ def _fwd_kernel(
     k_ptrs = K + off_k
     v_ptrs = V + off_v
     # initialize pointer to m and l
-    m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
+    m_prev = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
+    l_prev = tl.zeros([BLOCK_M], dtype=tl.float32)
     acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
-    # causal check on every loop iteration can be expensive
-    # and peeling the last iteration of the loop does not work well with ptxas
-    # so we have a mode to do the causal check in a separate kernel entirely
-    if MODE == 0:  # entire non-causal attention
-        lo, hi = 0, N_CTX
-    if MODE == 1:  # entire causal attention
-        lo, hi = 0, (start_m + 1) * BLOCK_M
-    if MODE == 2:  # off band-diagonal
-        lo, hi = 0, start_m * BLOCK_M
-    # credits to: Adam P. Goucher (https://github.com/apgoucher):
-    # scale sm_scale by 1/log_2(e) and use
-    # 2^x instead of exp in the loop because CSE and LICM
-    # don't work as expected with `exp` in the loop
-    qk_scale = sm_scale * 1.44269504
     # load q: it will stay in SRAM throughout
     q = tl.load(q_ptrs)
-    q = (q * qk_scale).to(tl.float16)
     # loop over k, v and update accumulator
-    for start_n in range(lo, hi, BLOCK_N):
+    for start_n in range(0, (start_m + 1) * BLOCK_M, BLOCK_N):
         # -- compute qk ----
         k = tl.load(k_ptrs)
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
         qk += tl.dot(q, k)
-        if MODE == 1 or MODE == 3:
-            qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
-        # -- compute m_ij, p, l_ij
-        m_ij = tl.maximum(m_i, tl.max(qk, 1))
-        p = tl.math.exp2(qk - m_ij[:, None])
-        l_ij = tl.sum(p, 1)
-        # -- update m_i and l_i
-        alpha = tl.math.exp2(m_i - m_ij)
-        l_i *= alpha
-        l_i_new = l_i + l_ij
-        # scale acc
-        acc_scale = l_i * 0 + alpha
-        acc = acc * acc_scale[:, None]
+        qk *= sm_scale
+        qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
+        # compute new m
+        m_curr = tl.maximum(tl.max(qk, 1), m_prev)
+        # correct old l
+        l_prev *= tl.exp(m_prev - m_curr)
+        # attention weights
+        p = tl.exp(qk - m_curr[:, None])
+        l_curr = tl.sum(p, 1) + l_prev
+        # rescale operands of matmuls
+        l_rcp = 1. / l_curr
+        p *= l_rcp[:, None]
+        acc *= (l_prev * l_rcp)[:, None]
         # update acc
+        p = p.to(Q.dtype.element_ty)
         v = tl.load(v_ptrs)
-        p = p.to(tl.float16)
         acc += tl.dot(p, v)
         # update m_i and l_i
-        l_i = l_i_new
-        m_i = m_ij
+        l_prev = l_curr
+        m_prev = m_curr
         # update pointers
         k_ptrs += BLOCK_N * stride_kn
         v_ptrs += BLOCK_N * stride_vk
+    # rematerialize offsets to save registers
+    start_m = tl.program_id(0)
+    offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     # write back l and m
-    acc = acc / l_i[:, None]
     l_ptrs = L + off_hz * N_CTX + offs_m
     m_ptrs = M + off_hz * N_CTX + offs_m
-    tl.store(l_ptrs, l_i)
-    tl.store(m_ptrs, m_i)
+    tl.store(l_ptrs, l_prev)
+    tl.store(m_ptrs, m_prev)
     # initialize pointers to output
     offs_n = tl.arange(0, BLOCK_DMODEL)
     off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
@@ -238,19 +224,24 @@ empty = torch.empty(128, device="cuda")
 class _attention_triton(torch.autograd.Function):
 
     @staticmethod
+<<<<<<< HEAD
     def forward(ctx, q, k, v, causal, sm_scale):
+=======
+    def forward(ctx, q, k, v, sm_scale):
+        BLOCK_M = 128
+        BLOCK_N = 32
+>>>>>>> 08a462ce6... Separate BLOCK_M and BLOCK_N for FA v1
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
         assert Lq == Lk and Lk == Lv
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
-        BLOCK_M = 128
-        BLOCK_N = 64
         grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         m = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
 
+<<<<<<< HEAD
         if causal:
             modes = [1] if q.shape[2] <= 2048 else [2]
         else:
@@ -276,6 +267,21 @@ class _attention_triton(torch.autograd.Function):
                 BLOCK_DMODEL=Lk, MODE=mode, num_warps=4,
                 num_stages=1,
             )
+=======
+        _fwd_kernel[grid](
+            q, k, v, sm_scale,
+            L, m,
+            o,
+            q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+            k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+            v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+            o.stride(0), o.stride(1), o.stride(2), o.stride(3),
+            q.shape[0], q.shape[1], q.shape[2],
+            BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N,
+            BLOCK_DMODEL=Lk, num_warps=num_warps,
+            num_stages=2,
+        )
+>>>>>>> 08a462ce6... Separate BLOCK_M and BLOCK_N for FA v1
         # print(h.asm["ttgir"])
 
         ctx.save_for_backward(q, k, v, o, L, m)
@@ -346,7 +352,7 @@ def flash_attn_triton(q, k, v, causal, softmax_scale=None):
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return _attention_triton.apply(q, k, v, causal, softmax_scale)
+    return _attention_triton.apply(q, k, v, softmax_scale)
 
 
 def _flash_attn_forward(q, k, v, out, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
