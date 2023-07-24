@@ -39,17 +39,19 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 torch.manual_seed(0)
 repeats = 20
 
+dropout_p = 0.1
+causal = False
+dtype = torch.float16
+device = 'cuda'
+
 ## table 1
-print('fwd-bs4-nheads48-d64-causal=False')
+print(f'fwd-bs4-nheads48-d64-causal={causal}')
 batch_size = [4]
 nheads = 48
 seqlen = [1024,2048,4096,8192,16384]
 n = 3072
 d = n // nheads # 64
-dropout_p = 0.1
-causal = False
-dtype = torch.float16
-device = 'cuda'
+
 
 for bs in batch_size:
     for sq in seqlen:
@@ -90,7 +92,7 @@ for bs in batch_size:
         print(f'{bs:3d}  {sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
 
 ## table 2
-print('fwd-nheads16-d64-causal=False')
+print(f'fwd-nheads16-d64-causal={causal}')
 batch_size = [1,32,48,64,128]
 nheads = 16
 seqlen = [1024,2048,4096]
