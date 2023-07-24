@@ -23,22 +23,39 @@
 
 #pragma once
 
-#include <ATen/ATen.h>
-#include <torch/extension.h>
-#include <ATen/hip/HIPContext.h>
-#include <ATen/hip/HIPGeneratorImpl.h>
-#include <c10/hip/HIPGuard.h>
-#include <c10/core/DeviceType.h>
+#include "fwd_device_gemm_launcher.h"
 
-class SimpleDeviceMem {
+#include "static_switch.h"
+
+namespace fwd_device_gemm {
+class FlashFwdRunner {
  public:
-  SimpleDeviceMem() = delete;
-  explicit SimpleDeviceMem(std::size_t mem_size) 
-      : p_mem_{} { (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size); }
-      
-    void* GetDeviceBuffer() const { return p_mem_; }
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
-
+  // constructor
+  explicit FlashFwdRunner(LaunchParams<FlashFwdParams> &launch_params)
+    : params_(launch_params.params),
+      is_deterministic_(launch_params.is_deterministic_),
+      is_performance_mode_(launch_params.is_performance_mode_) {}
+ 
+  template <int kHeadDim, typename T, bool kIsCasual>
+  void Run();
+ 
  private:
-  void* p_mem_;
-};
+  template <template <typename> typename DeviceGemmTemplate,
+            typename T, 
+            device_gemm_trait::MaskingSpec kMaskingSpec, 
+            bool kIsDeterministic>
+  void run_() {
+    // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
+    using DeviceGemmTraits = device_gemm_trait::Forward<T,
+                                                        kMaskingSpec, 
+                                                        kIsDeterministic>;
+    using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
+    auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
+    device_gemm_instance_ptr->Launch(params_);
+  }
+
+  FlashFwdParams &params_;
+  const bool is_deterministic_;
+  const bool is_performance_mode_;
+}; // class FlashFwdRunnerBase
+} // namespace fwd_device_gemm

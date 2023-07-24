@@ -113,6 +113,7 @@ struct Backward {
   using LSEDataType      = Float32;
   using Acc0BiasDataType = ck::Tuple<>;
   using Acc1BiasDataType = ck::Tuple<>;
+  using Acc0ElementOp    = Scale;
 
   static constexpr Index kNumDimG = 2;
   static constexpr Index kNumDimM = 1;

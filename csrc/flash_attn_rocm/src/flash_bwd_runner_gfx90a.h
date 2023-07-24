@@ -24,45 +24,59 @@
 #pragma once
 
 #include "bwd_device_gemm_launcher.h"
-#include "launch_params.h"
+
+#include "static_switch.h"
 
 namespace bwd_device_gemm {
-class FmhaBwdRunner {
+class FlashBwdRunner {
  public:
   // constructor
-  explicit FmhaBwdRunner(const LaunchParams<FmhaBwdParams> &launch_params)
+  explicit FlashBwdRunner(LaunchParams<FlashBwdParams> &launch_params)
     : params_(launch_params.params),
-      is_bf16_(launch_params.is_bf16_),
-      is_causal_(launch_params.is_causal_),
       is_deterministic_(launch_params.is_deterministic_),
       is_performance_mode_(launch_params.is_performance_mode_) {}
-  // run fmha bwd
-  void Run();
- 
- protected:
-  const FmhaBwdParams &params_;
-  const bool is_bf16_;
-  const bool is_causal_;
-  const bool is_deterministic_;
-  const bool is_performance_mode_;
 
-  template <typename DataType, typename DropoutType, bool kIsDeterministic, bool kMaskingSpec>
+  template <int kHeadDim, typename T, bool kIsCasual>
+  void Run();
+
+ private:
+  template <template <typename> typename DeviceGemmTemplate,
+            typename T, 
+            typename DropoutType, 
+            device_gemm_trait::MaskingSpec kMaskingSpec, 
+            bool kIsDeterministic>
   void run_() {
     if (is_performance_mode_) {
+      // benchmark mode
       // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
-      using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, DataType, device_gemm_trait::BFloat16, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
-      using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
-      auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
-      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
-    }
-    // non-performance mode for unit test
-    else {
+      using DeviceGemmTraits = device_gemm_trait::Backward<T, 
+                                                           T, 
+                                                           device_gemm_trait::BFloat16, 
+                                                           DropoutType, 
+                                                           4, 
+                                                           kMaskingSpec, 
+                                                           kIsDeterministic>;
+      using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
+      auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
+      device_gemm_instance_ptr->Launch(params_);
+    } else { 
+      // unit test mode
       // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
-      using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, device_gemm_trait::Float32, DataType, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
-      using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
-      auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
-      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
+      using DeviceGemmTraits = device_gemm_trait::Backward<T, 
+                                                           device_gemm_trait::Float32, 
+                                                           T,
+                                                           DropoutType,
+                                                           4, 
+                                                           kMaskingSpec, 
+                                                           kIsDeterministic>;
+      using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
+      auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
+      device_gemm_instance_ptr->Launch(params_);
     }
   }
-}; // class FmhaBwdRunner
+
+  FlashBwdParams &params_;
+  const bool is_deterministic_;
+  const bool is_performance_mode_;
+}; // class FlashBwdRunner
 } // namespace bwd_device_gemm

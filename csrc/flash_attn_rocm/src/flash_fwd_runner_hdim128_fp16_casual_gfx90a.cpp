@@ -21,24 +21,17 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "run_fmha_fwd.gfx90a.h"
-
-#include <memory>
-
-#include "device_gemm_trait.h"
-#include "switch_wrapper.h"
+#include "flash_fwd_runner_gfx90a.h"
 
 namespace fwd_device_gemm {
-void FmhaFwdRunner::Run() {
-  headdim_switch(params_.d,
-  bf16_switch(is_bf16_, 
-  causal_switch(is_causal_, 
-  deterministic_switch(is_deterministic_, [&]() {
-    // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
-    using FwdDeviceGemmTraits = device_gemm_trait::Forward<DataType, kMaskingSpec, kIsDeterministic>;
-    using FwdDeviceGemmTemplate = FwdDeviceGemm<FwdDeviceGemmTraits>;
-    auto fwd_device_gemm_instance_launcher_ptr = std::make_unique<FwdDeviceGemmInstanceLauncher<FwdDeviceGemmTemplate>>();
-    fwd_device_gemm_instance_launcher_ptr->Launch(params_);
-  }))));
-} // FmhaFwdRunner::Run()
+// hdim 128, fp16, casual
+template <>
+void FlashFwdRunner::Run<128, device_gemm_trait::Float16, true>() {
+  BOOL_SWITCH(is_deterministic_, kIsDeterministic, [&] {
+    this->template run_<DeviceGemmHeadDim128,
+                  device_gemm_trait::Float16, 
+                  device_gemm_trait::kMaskingSpecCausal,
+                  kIsDeterministic>();
+  });
+} // FlashFwdRunner::Run()
 } // namespace fwd_device_gemm

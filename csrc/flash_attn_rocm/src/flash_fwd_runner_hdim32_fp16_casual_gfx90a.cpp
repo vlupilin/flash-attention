@@ -21,34 +21,17 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "run_fmha_bwd.gfx90a.h"
+#include "flash_fwd_runner_gfx90a.h"
 
-#include <memory>
-
-#include "device_gemm_trait.h"
-#include "switch_wrapper.h"
-
-namespace bwd_device_gemm {
-void FmhaBwdRunner::Run() {
-  headdim_switch(params_.d,
-  bf16_switch(is_bf16_, 
-  causal_switch(is_causal_, 
-  deterministic_switch(is_deterministic_, [&]() {
-    if (is_performance_mode_) {
-      // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
-      using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, DataType, device_gemm_trait::BFloat16, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
-      using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
-      auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
-      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
-    }
-    // non-performance mode for unit test
-    else {
-      // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
-      using BwdDeviceGemmTraits = device_gemm_trait::Backward<DataType, device_gemm_trait::Float32, DataType, DropoutType, 4, kMaskingSpec, kIsDeterministic>;
-      using BwdDeviceGemmTemplate = BwdDeviceGemm<BwdDeviceGemmTraits>;
-      auto bwd_device_gemm_instance_launcher_ptr = std::make_unique<BwdDeviceGemmInstanceLauncher<BwdDeviceGemmTemplate>>();
-      bwd_device_gemm_instance_launcher_ptr->Launch(params_);
-    }
-  }))));
-} // FmhaBwdRunner::Run()
-} // namespace bwd_device_gemm
+namespace fwd_device_gemm {
+// hdim 32, fp16, casual
+template <>
+void FlashFwdRunner::Run<32, device_gemm_trait::Float16, true>() {
+  BOOL_SWITCH(is_deterministic_, kIsDeterministic, [&] {
+    this->template run_<DeviceGemmHeadDim32,
+                  device_gemm_trait::Float16, 
+                  device_gemm_trait::kMaskingSpecCausal,
+                  kIsDeterministic>();
+  });
+} // FlashFwdRunner::Run()
+} // namespace fwd_device_gemm

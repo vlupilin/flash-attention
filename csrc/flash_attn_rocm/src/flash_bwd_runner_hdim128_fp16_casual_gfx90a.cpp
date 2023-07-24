@@ -21,29 +21,18 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+#include "flash_bwd_runner_gfx90a.h"
 
-#include "fwd_device_gemm_launcher.h"
-#include "launch_params.h"
-
-namespace fwd_device_gemm {
-class FmhaFwdRunner {
- public:
-  // constructor
-  explicit FmhaFwdRunner(const LaunchParams<FmhaFwdParams> &launch_params)
-    : params_(launch_params.params),
-      is_bf16_(launch_params.is_bf16_),
-      is_causal_(launch_params.is_causal_),
-      is_deterministic_(launch_params.is_deterministic_),
-      is_performance_mode_(launch_params.is_performance_mode_) {}
-  // run fmha Fwd
-  void Run();
- 
- protected:
-  const FmhaFwdParams &params_;
-  const bool is_bf16_;
-  const bool is_causal_;
-  const bool is_deterministic_;
-  const bool is_performance_mode_;
-}; // class FmhaFwdRunner
-} // namespace fwd_device_gemm
+namespace bwd_device_gemm {
+// hdim 128, fp16, casual
+template <>
+void FlashBwdRunner::Run<128, device_gemm_trait::Float16, true>() {
+  BOOL_SWITCH(is_deterministic_, kIsDeterministic, [&] {
+    this->template run_<DeviceGemmHeadDim128,
+                  device_gemm_trait::Float16, 
+                  device_gemm_trait::Int32,
+                  device_gemm_trait::kMaskingSpecCausal,
+                  kIsDeterministic>();
+  });
+} // FlashBwdRunner::Run()
+} // namespace bwd_device_gemm

@@ -133,7 +133,7 @@ if os.path.exists(os.path.join(torch_dir, "include", "ATen", "CUDAGeneratorImpl.
 
 # raise_if_cuda_home_none("flash_attn")
 # # Check, if CUDA11 is installed for compute capability 8.0
-cc_flag = ["-DBUILD_PYTHON_PACKAGE", "-DFLASH_ATTENTION_INTERNAL_USE_RTZ=0"]
+cc_flag = ["-DBUILD_PYTHON_PACKAGE", f"-DFLASH_ATTENTION_INTERNAL_USE_RTZ={os.environ.get('FLASH_ATTENTION_INTERNAL_USE_RTZ', 1)}"]
 # _, bare_metal_major, _ = get_cuda_bare_metal_version(CUDA_HOME)
 # if int(bare_metal_major) < 11:
 #     raise RuntimeError("FlashAttention is only supported on CUDA 11")
@@ -143,12 +143,34 @@ cc_flag = ["-DBUILD_PYTHON_PACKAGE", "-DFLASH_ATTENTION_INTERNAL_USE_RTZ=0"]
 # cc_flag.append("arch=compute_80,code=sm_80")
 
 
-ck_sources = ["csrc/flash_attn_rocm/composable_kernel/library/src/utility/convolution_parameter.cpp", "csrc/flash_attn_rocm/composable_kernel/library/src/utility/device_memory.cpp", "csrc/flash_attn_rocm/composable_kernel/library/src/utility/host_tensor.cpp"]
+ck_sources = ["csrc/flash_attn_rocm/composable_kernel/library/src/utility/convolution_parameter.cpp", 
+              "csrc/flash_attn_rocm/composable_kernel/library/src/utility/device_memory.cpp", 
+              "csrc/flash_attn_rocm/composable_kernel/library/src/utility/host_tensor.cpp"]
 fmha_sources = ["csrc/flash_attn_rocm/fmha_api.cpp", 
-                "csrc/flash_attn_rocm/src/run_fmha_fwd.gfx90a.cpp", 
-                "csrc/flash_attn_rocm/src/run_fmha_bwd.gfx90a.cpp",
-                "csrc/flash_attn_rocm/src/fwd_device_gemm_launcher.cpp",
-                "csrc/flash_attn_rocm/src/bwd_device_gemm_launcher.cpp"]
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_fp16_casual_gfx90a.cpp", 
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_fp16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_bf16_casual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_bf16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_fp16_casual_gfx90a.cpp", 
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_fp16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_bf16_casual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_bf16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_fp16_casual_gfx90a.cpp", 
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_fp16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_bf16_casual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_bf16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_fp16_casual_gfx90a.cpp", 
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_fp16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_bf16_casual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_bf16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_fp16_casual_gfx90a.cpp", 
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_fp16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_bf16_casual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_bf16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_fp16_casual_gfx90a.cpp", 
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_fp16_noncasual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_bf16_casual_gfx90a.cpp",
+                "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_bf16_noncasual_gfx90a.cpp"]
 
 rename_cpp_cu(ck_sources)
 rename_cpp_cu(fmha_sources)
@@ -157,16 +179,34 @@ rename_cpp_cu(fmha_sources)
 ext_modules.append(
     CUDAExtension(
         name="flash_attn_cuda",
-        sources=[
-            "csrc/flash_attn_rocm/fmha_api.cu",
-            "csrc/flash_attn_rocm/src/run_fmha_fwd.gfx90a.cu",
-            "csrc/flash_attn_rocm/src/run_fmha_bwd.gfx90a.cu",
-            "csrc/flash_attn_rocm/src/fwd_device_gemm_launcher.cu",
-            "csrc/flash_attn_rocm/src/bwd_device_gemm_launcher.cu",
-            "csrc/flash_attn_rocm/composable_kernel/library/src/utility/convolution_parameter.cu",
-            "csrc/flash_attn_rocm/composable_kernel/library/src/utility/device_memory.cu",
-            "csrc/flash_attn_rocm/composable_kernel/library/src/utility/host_tensor.cu"
-        ],
+        sources=["csrc/flash_attn_rocm/fmha_api.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_fp16_casual_gfx90a.cu", 
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_fp16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_bf16_casual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim32_bf16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_fp16_casual_gfx90a.cu", 
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_fp16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_bf16_casual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim64_bf16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_fp16_casual_gfx90a.cu", 
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_fp16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_bf16_casual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_fwd_runner_hdim128_bf16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_fp16_casual_gfx90a.cu", 
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_fp16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_bf16_casual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim32_bf16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_fp16_casual_gfx90a.cu", 
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_fp16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_bf16_casual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim64_bf16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_fp16_casual_gfx90a.cu", 
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_fp16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_bf16_casual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/src/flash_bwd_runner_hdim128_bf16_noncasual_gfx90a.cu",
+                 "csrc/flash_attn_rocm/composable_kernel/library/src/utility/convolution_parameter.cu",
+                 "csrc/flash_attn_rocm/composable_kernel/library/src/utility/device_memory.cu",
+                 "csrc/flash_attn_rocm/composable_kernel/library/src/utility/host_tensor.cu"],
         extra_compile_args={
             "cxx": ["-O3", "-std=c++20"] + generator_flag,
             "nvcc":

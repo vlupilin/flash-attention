@@ -17,7 +17,7 @@
 #include <c10/hip/HIPGuard.h>
 #include <c10/core/DeviceType.h>
 
-#include "fmha_utils.h"
+#include "utils.h"
 
 constexpr int TOTAL_DIM = 0;
 constexpr int H_DIM = 1;
@@ -49,7 +49,7 @@ struct QkvParams {
   int h;
 };
 
-struct FmhaFwdParams : public QkvParams {
+struct FlashFwdParams : public QkvParams {
   // The O matrix (output).
   // void * __restrict__ o_ptr;
   std::vector<void*> o_ptr;
@@ -111,7 +111,7 @@ struct FmhaFwdParams : public QkvParams {
   int num_splits; // How many SMs per attention matrix.
 };
 
-struct FmhaBwdParams : public QkvParams {
+struct FlashBwdParams : public QkvParams {
   // The O matrix (output).
   std::vector<const void*> y_ptr;
   std::vector<void*> z_ptr;
@@ -167,7 +167,7 @@ struct LaunchParams{
                bool is_dropout,
                bool return_softmax,
                bool is_bf16,
-               bool is_causal,
+               bool is_casual,
                bool is_deterministic,
                bool is_performance_mode)
       : elts_per_thread_(0),
@@ -176,7 +176,7 @@ struct LaunchParams{
         is_dropout_(is_dropout), 
         return_softmax_(return_softmax),
         is_bf16_(is_bf16),
-        is_causal_(is_causal),
+        is_casual_(is_casual),
         is_deterministic_(is_deterministic),
         is_performance_mode_(is_performance_mode) {}
 
@@ -194,7 +194,7 @@ struct LaunchParams{
   bool return_softmax_;
 
   bool is_bf16_;
-  bool is_causal_;
+  bool is_casual_;
   bool is_performance_mode_;
   bool is_deterministic_;
 

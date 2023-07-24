@@ -8,12 +8,14 @@
 
 #include <memory>
 
-#include "run_fmha_fwd.gfx90a.h"
-#include "run_fmha_bwd.gfx90a.h"
+#include "flash_fwd_runner_gfx90a.h"
+#include "flash_bwd_runner_gfx90a.h"
+
+#include "static_switch.h"
 
 #define CHECK_SHAPE(x, ...) TORCH_CHECK(x.sizes() == torch::IntArrayRef({__VA_ARGS__}), #x " must have shape (" #__VA_ARGS__ ")")
 
-void set_params_fprop(FmhaFwdParams &params,
+void set_params_fprop(FlashFwdParams &params,
                       // sizes
                       const size_t b,
                       const size_t seqlen_q,
@@ -120,7 +122,7 @@ void set_params_fprop(FmhaFwdParams &params,
     params.p_dropout = p_dropout;
 }
 
-void set_params_dgrad(FmhaBwdParams &params,
+void set_params_dgrad(FlashBwdParams &params,
                       // sizes
                       const size_t b,
                       const size_t seqlen_q,
@@ -265,6 +267,28 @@ void set_params_dgrad(FmhaBwdParams &params,
     params.p_dropout = p_dropout;
 }
 
+void run_flash_fwd(LaunchParams<FlashFwdParams> &launch_params) {
+  HEADDIM_SWITCH(launch_params.params.d, [&] {
+    BF16_SWITCH(launch_params.is_bf16_, [&] {
+      BOOL_SWITCH(launch_params.is_casual_, kIsCasual, [&] {
+        auto flash_fwd_runner_ptr = std::make_unique<fwd_device_gemm::FlashFwdRunner>(launch_params);
+        flash_fwd_runner_ptr->Run<kHeadDim, T, kIsCasual>();
+      });
+    });
+  });
+}
+
+void run_flash_bwd(LaunchParams<FlashBwdParams> &launch_params) {
+  HEADDIM_SWITCH(launch_params.params.d, [&] {
+    BF16_SWITCH(launch_params.is_bf16_, [&] {
+      BOOL_SWITCH(launch_params.is_casual_, kIsCasual, [&] {
+        auto flash_bwd_runner_ptr = std::make_unique<bwd_device_gemm::FlashBwdRunner>(launch_params);
+        flash_bwd_runner_ptr->Run<kHeadDim, T, kIsCasual>();
+      });
+    });
+  });
+}
+
 std::vector<at::Tensor>
 mha_fwd(const at::Tensor &q,
         const at::Tensor &k,
@@ -289,7 +313,7 @@ mha_fwd(const at::Tensor &q,
     bool is_bf16 = (q_dtype == at::kBFloat16);
     bool is_dropout = (p_dropout > 0.0);
 
-    LaunchParams<FmhaFwdParams> launch_params(dprops, 
+    LaunchParams<FlashFwdParams> launch_params(dprops, 
                                               stream, 
                                               is_dropout, 
                                               return_softmax,
@@ -392,8 +416,7 @@ mha_fwd(const at::Tensor &q,
         launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
     }
 
-    auto fmha_fwd_runner_ptr = std::make_unique<fwd_device_gemm::FmhaFwdRunner>(launch_params);
-    fmha_fwd_runner_ptr->Run();
+    run_flash_fwd(launch_params);
 
     std::vector<at::Tensor> result = {softmax_lse};
 
@@ -432,7 +455,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     bool is_bf16 = (q_dtype == at::kBFloat16);
     bool is_dropout = p_dropout > 0.0;
     auto stream = at::cuda::getCurrentHIPStream().stream();
-    LaunchParams<FmhaBwdParams> launch_params(dprops, 
+    LaunchParams<FlashBwdParams> launch_params(dprops, 
                                               stream, 
                                               is_dropout, 
                                               false,
@@ -562,8 +585,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
         launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
     }
 
-    auto fmha_bwd_runner_ptr = std::make_unique<bwd_device_gemm::FmhaBwdRunner>(launch_params);
-    fmha_bwd_runner_ptr->Run();
+    run_flash_bwd(launch_params);
 
     if(!q.is_contiguous()){
         dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);

@@ -21,24 +21,18 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+#include "flash_bwd_runner_gfx90a.h"
 
-#include <ATen/ATen.h>
-#include <torch/extension.h>
-#include <ATen/hip/HIPContext.h>
-#include <ATen/hip/HIPGeneratorImpl.h>
-#include <c10/hip/HIPGuard.h>
-#include <c10/core/DeviceType.h>
-
-class SimpleDeviceMem {
- public:
-  SimpleDeviceMem() = delete;
-  explicit SimpleDeviceMem(std::size_t mem_size) 
-      : p_mem_{} { (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size); }
-      
-    void* GetDeviceBuffer() const { return p_mem_; }
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
-
- private:
-  void* p_mem_;
-};
+namespace bwd_device_gemm {
+// hdim 32, bf16, casual
+template <>
+void FlashBwdRunner::Run<32, device_gemm_trait::BFloat16, true>() {
+  BOOL_SWITCH(is_deterministic_, kIsDeterministic, [&] {
+    this->template run_<DeviceGemmHeadDim32,
+                  device_gemm_trait::BFloat16, 
+                  device_gemm_trait::Int16,
+                  device_gemm_trait::kMaskingSpecCausal,
+                  kIsDeterministic>();
+  });
+} // FlashBwdRunner::Run()
+} // namespace bwd_device_gemm
