@@ -1,4 +1,4 @@
-// BSD 3 Clause_using_qloop
+// BSD 3 Clause
 // Copyright 2023 Advanced Micro Devices, Inc.
 // Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 // 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -6,14 +6,38 @@
 // 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <memory>
-
 #include "flash_fwd_runner_gfx90a.h"
 #include "flash_bwd_runner_gfx90a.h"
 
 #include "static_switch.h"
 
 #define CHECK_SHAPE(x, ...) TORCH_CHECK(x.sizes() == torch::IntArrayRef({__VA_ARGS__}), #x " must have shape (" #__VA_ARGS__ ")")
+
+void run_flash_fwd(LaunchParams<FlashFwdParams> &launch_params) {
+  HEADDIM_SWITCH(launch_params.params.d, [&] {
+    BF16_SWITCH(launch_params.params.is_bf16, [&] {
+      BOOL_SWITCH(launch_params.params.is_causal, kIsCausal, [&] {
+        BOOL_SWITCH(launch_params.params.is_using_qloop, kIsQLoop, [&] {
+          auto flash_fwd_runner_ptr = std::make_unique<fwd_device_gemm::FlashFwdRunner>(launch_params);
+          flash_fwd_runner_ptr->Run<kIsQLoop, kHeadDim, T, kIsCausal>();
+        });
+      });
+    });
+  });
+}
+
+void run_flash_bwd(LaunchParams<FlashBwdParams> &launch_params) {
+  HEADDIM_SWITCH(launch_params.params.d, [&] {
+    BF16_SWITCH(launch_params.params.is_bf16, [&] {
+      BOOL_SWITCH(launch_params.params.is_causal, kIsCausal, [&] {
+        BOOL_SWITCH(launch_params.params.is_using_qloop, kIsQLoop, [&] {
+          auto flash_bwd_runner_ptr = std::make_unique<bwd_device_gemm::FlashBwdRunner>(launch_params);
+          flash_bwd_runner_ptr->Run<kIsQLoop, kHeadDim, T, kIsCausal>();
+        });
+      });
+    });
+  });
+}
 
 void set_params_fprop(FlashFwdParams &params,
                       // sizes
@@ -23,12 +47,12 @@ void set_params_fprop(FlashFwdParams &params,
                       const size_t h,
                       const size_t d,
                       // device pointers
-                      const at::Tensor &q,
-                      const at::Tensor &k,
-                      const at::Tensor &v,
+                      const at::Tensor& q,
+                      const at::Tensor& k,
+                      const at::Tensor& v,
                       at::Tensor& out,
-                      const at::Tensor &cu_seqlens_q,
-                      const at::Tensor &cu_seqlens_k,
+                      const at::Tensor& cu_seqlens_q,
+                      const at::Tensor& cu_seqlens_k,
                       void *o_tmp_d,
                       void *s_d,
                       void *softmax_lse_d,
@@ -37,6 +61,7 @@ void set_params_fprop(FlashFwdParams &params,
                       bool is_causal,
                       bool is_deterministic,
                       bool is_using_qloop) {
+
     auto acc_type = torch::kFloat32;
     auto data_type = q.dtype();
 
@@ -195,7 +220,7 @@ void set_params_dgrad(FlashBwdParams &params,
     char* q_ptr = reinterpret_cast<char*>(q.data_ptr());
     char* k_ptr = reinterpret_cast<char*>(k.data_ptr());
     char* v_ptr = reinterpret_cast<char*>(v.data_ptr());
-    
+
     char* dq_ptr = reinterpret_cast<char*>(dq.data_ptr());
     char* dk_ptr = reinterpret_cast<char*>(dk.data_ptr());
     char* dv_ptr = reinterpret_cast<char*>(dv.data_ptr());
@@ -228,9 +253,8 @@ void set_params_dgrad(FlashBwdParams &params,
             params.k_ptr.push_back(reinterpret_cast<void*>(k_ptr));
             params.kgrad_ptr.push_back(reinterpret_cast<void*>(dk_ptr));
             k_ptr = k_ptr + temp_k_stride;
-            dk_ptr = dk_ptr + temp_k_stride;
+            dk_ptr = dk_ptr + temp_dk_stride;
         }else{
-            //std::cout << "k.is_not_contiguous()" << std::endl;
             auto k_each_tmp = k.index({torch::indexing::Slice(params.host_seqlens_k[i], params.host_seqlens_k[i+1])}).contiguous();
             auto kgrad_each_tmp = dk.index({torch::indexing::Slice(params.host_seqlens_k[i], params.host_seqlens_k[i+1])}).contiguous();
             params.k_tensors.push_back(k_each_tmp);
@@ -239,13 +263,11 @@ void set_params_dgrad(FlashBwdParams &params,
             params.kgrad_ptr.push_back(reinterpret_cast<void*>(kgrad_each_tmp.data_ptr()));
         }
         if(v.is_contiguous()){
-            //std::cout << "v.is_contiguous()" << std::endl;
             params.v_ptr.push_back(reinterpret_cast<void*>(v_ptr)); 
             params.vgrad_ptr.push_back(reinterpret_cast<void*>(dv_ptr));
             v_ptr = v_ptr + temp_k_stride;   
-            dv_ptr = dv_ptr + temp_k_stride;
+            dv_ptr = dv_ptr + temp_dk_stride;
         }else{
-            //std::cout << "v.is_not_contiguous()" << std::endl;
             auto v_each_tmp = v.index({torch::indexing::Slice(params.host_seqlens_k[i], params.host_seqlens_k[i+1])}).contiguous();
             auto vgrad_each_tmp = dv.index({torch::indexing::Slice(params.host_seqlens_k[i], params.host_seqlens_k[i+1])}).contiguous();
             params.v_tensors.push_back(v_each_tmp);
@@ -278,32 +300,6 @@ void set_params_dgrad(FlashBwdParams &params,
     params.is_using_qloop = is_using_qloop;
 }
 
-void run_flash_fwd(LaunchParams<FlashFwdParams> &launch_params) {
-  HEADDIM_SWITCH(launch_params.params.d, [&] {
-    BF16_SWITCH(launch_params.params.is_bf16, [&] {
-      BOOL_SWITCH(launch_params.params.is_causal, kIsCausal, [&] {
-        BOOL_SWITCH(launch_params.params.is_using_qloop, kIsQLoop, [&] {
-          auto flash_fwd_runner_ptr = std::make_unique<fwd_device_gemm::FlashFwdRunner>(launch_params);
-          flash_fwd_runner_ptr->Run<kIsQLoop, kHeadDim, T, kIsCausal>();
-        });
-      });
-    });
-  });
-}
-
-void run_flash_bwd(LaunchParams<FlashBwdParams> &launch_params) {
-  HEADDIM_SWITCH(launch_params.params.d, [&] {
-    BF16_SWITCH(launch_params.params.is_bf16, [&] {
-      BOOL_SWITCH(launch_params.params.is_causal, kIsCausal, [&] {
-        BOOL_SWITCH(launch_params.params.is_using_qloop, kIsQLoop, [&] {
-          auto flash_bwd_runner_ptr = std::make_unique<bwd_device_gemm::FlashBwdRunner>(launch_params);
-          flash_bwd_runner_ptr->Run<kIsQLoop, kHeadDim, T, kIsCausal>();
-        });
-      });
-    });
-  });
-}
-
 std::vector<at::Tensor>
 mha_fwd(const at::Tensor &q,
         const at::Tensor &k,
@@ -322,13 +318,12 @@ mha_fwd(const at::Tensor &q,
         const bool return_softmax, // in rocm ,this will return the random number matrix when doing dropout
         const int num_splits,      // num_splits is not used in rocm
         c10::optional<at::Generator> gen_) {
-    auto q_dtype = q.dtype();
     auto dprops = at::cuda::getCurrentDeviceProperties();
     auto stream = at::cuda::getCurrentHIPStream().stream();
-    bool is_bf16 = (q_dtype == at::kBFloat16);
-    bool is_dropout = (p_dropout > 0.0);
-
+    bool is_dropout = p_dropout > 0.0;
     LaunchParams<FlashFwdParams> launch_params(dprops, stream, is_dropout, return_softmax);
+
+    auto q_dtype = q.dtype();
 
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16);
     TORCH_CHECK(k.dtype() == q_dtype);
@@ -380,10 +375,8 @@ mha_fwd(const at::Tensor &q,
 
     auto softmax_lse = at::empty({batch_size, num_heads, max_seqlen_q}, opts.dtype(at::kFloat));
     // auto softmax_lse = torch::full({batch_size, num_heads, max_seqlen_k}, -std::numeric_limits<float>::infinity(), opts.dtype(at::kFloat));
-    softmax_lse.fill_(-std::numeric_limits<float>::infinity());
     at::Tensor s;
     if (return_softmax) { s = torch::empty({ batch_size, num_heads, max_seqlen_q, max_seqlen_k }, opts.dtype(at::kInt)); }
-    out.zero_();
     if (zero_tensors) {
         out.zero_();
         //softmax_lse.zero_();
@@ -460,13 +453,15 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
         const bool is_performance_mode,
         const bool is_using_qloop,
         const int num_splits,
-        c10::optional<at::Generator> gen_) {
-    auto q_dtype = q.dtype();
+        c10::optional<at::Generator> gen_
+) {
     auto dprops = at::cuda::getCurrentDeviceProperties();
-    bool is_bf16 = (q_dtype == at::kBFloat16);
+
     bool is_dropout = p_dropout > 0.0;
     auto stream = at::cuda::getCurrentHIPStream().stream();
     LaunchParams<FlashBwdParams> launch_params(dprops, stream, is_dropout, false);
+
+    auto q_dtype = q.dtype();
 
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16);
     TORCH_CHECK(k.dtype() == q_dtype);
@@ -529,7 +524,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     // It's possible the softmax_lse_ from the fwd has a different length since blocksize_c could be different.
     // auto softmax_lse = softmax_lse_.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(torch::indexing::None, max_seqlen_q)}).contiguous();
 
-    // auto opts = q.options();
+    // at::Tensor softmax_d = at::empty(dq.sizes(), dq.options()).contiguous();
     at::Tensor softmax_d;
 
     if (zero_tensors) {
@@ -542,58 +537,55 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
         gen_, at::cuda::detail::getDefaultCUDAGenerator());
 
-    
-    if(!is_performance_mode) {
-      at::Tensor dq_tmp = at::empty(dq.sizes(), dq.options().dtype(at::kFloat)).contiguous();
-      at::Tensor dk_tmp = at::empty(dk.sizes(), dk.options().dtype(at::kFloat)).contiguous();
-      at::Tensor dv_tmp = at::empty(dv.sizes(), dv.options().dtype(at::kFloat)).contiguous();
-      dq_tmp.zero_();
-      dk_tmp.zero_();
-      dv_tmp.zero_();
-      set_params_dgrad(launch_params.params,
-                      batch_size,
-                      max_seqlen_q,
-                      max_seqlen_k,
-                      num_heads,
-                      head_size,
-                      q, k, v, out,
-                      dout, dq_tmp, dk_tmp, dv_tmp,
-                      cu_seqlens_q,
-                      cu_seqlens_k,
-                      nullptr,
-                      softmax_lse.data_ptr(),
-                      p_dropout,
-                      softmax_scale,
-                      is_causal,
-                      is_deterministic,
-                      is_performance_mode,
-                      is_using_qloop);
+    if(!is_performance_mode){
+        at::Tensor dq_tmp = at::empty(dq.sizes(), dq.options().dtype(at::kFloat)).contiguous();
+        at::Tensor dk_tmp = at::empty(dk.sizes(), dk.options().dtype(at::kFloat)).contiguous();
+        at::Tensor dv_tmp = at::empty(dv.sizes(), dv.options().dtype(at::kFloat)).contiguous();
+        dq_tmp.zero_();
+        dk_tmp.zero_();
+        dv_tmp.zero_();
+        set_params_dgrad(launch_params.params,
+                        batch_size,
+                        max_seqlen_q,
+                        max_seqlen_k,
+                        num_heads,
+                        head_size,
+                        q, k, v, out,
+                        dout, dq_tmp, dk_tmp, dv_tmp,
+                        cu_seqlens_q,
+                        cu_seqlens_k,
+                        nullptr,
+                        softmax_lse.data_ptr(),
+                        p_dropout,
+                        softmax_scale,
+                        is_causal,
+                        is_deterministic,
+                        is_performance_mode,
+                        is_using_qloop);
 
-      
-      if( is_dropout ) {
-          // See Note [Acquire lock when using random generators]
-          int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
-          std::lock_guard<std::mutex> lock(gen->mutex_);
-          launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
-      }
+        
+        if( is_dropout ) {
+            // See Note [Acquire lock when using random generators]
+            int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
+            std::lock_guard<std::mutex> lock(gen->mutex_);
+            launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
+        }
 
-    run_flash_bwd(launch_params);
+        run_flash_bwd(launch_params);
+        if(!q.is_contiguous()){
+            dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
+        }
+        if(!k.is_contiguous()){
+            dk_tmp.copy_(torch::cat(launch_params.params.kgrad_tensors, 0).contiguous(), true);
+        }
+        if(!v.is_contiguous()){
+            dv_tmp.copy_(torch::cat(launch_params.params.vgrad_tensors, 0).contiguous(), true);
+        }
 
-    if(!q.is_contiguous()){
-      dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
-    }
-    if(!k.is_contiguous()){
-      dk_tmp.copy_(torch::cat(launch_params.params.kgrad_tensors, 0).contiguous(), true);
-    }
-    if(!v.is_contiguous()){
-      dv_tmp.copy_(torch::cat(launch_params.params.vgrad_tensors, 0).contiguous(), true);
-    }
-
-    dq.copy_(dq_tmp, true);
-    dk.copy_(dk_tmp, true);
-    dv.copy_(dv_tmp, true);
-
-    } else {
+        dq.copy_(dq_tmp, true);
+        dk.copy_(dk_tmp, true);
+        dv.copy_(dv_tmp, true);
+    }else{
         set_params_dgrad(launch_params.params,
                          batch_size,
                          max_seqlen_q,
@@ -624,13 +616,13 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
         run_flash_bwd(launch_params);
 
         if(!q.is_contiguous()){
-          dq.copy_(torch::cat(launch_params.params.qgrad_tensors, 0), true);
+            dq.copy_(torch::cat(launch_params.params.qgrad_tensors, 0), true);
         }
         if(!k.is_contiguous()){
-          dk.copy_(torch::cat(launch_params.params.kgrad_tensors, 0), true);
+            dk.copy_(torch::cat(launch_params.params.kgrad_tensors, 0), true);
         }
         if(!v.is_contiguous()){
-          dv.copy_(torch::cat(launch_params.params.vgrad_tensors, 0), true);
+            dv.copy_(torch::cat(launch_params.params.vgrad_tensors, 0), true);
         }
     }
     return { dq, dk, dv, softmax_d };
@@ -647,7 +639,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     }
 #endif
 
-#if BUILD_TEST
+#if 0
 //main function to test with the API
 bool fwd_test(bool do_verification){
     int batch_size = 64;

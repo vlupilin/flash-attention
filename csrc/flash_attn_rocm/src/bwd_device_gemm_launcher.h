@@ -28,7 +28,6 @@
 #include <memory>
 
 #include "bwd_device_gemm_template.h"
-#include "device_gemm_trait.h"
 #include "launch_params.h"
 #include "device_memory_manager.h"
 

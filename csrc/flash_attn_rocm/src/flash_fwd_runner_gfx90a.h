@@ -23,6 +23,11 @@
 
 #pragma once
 
+#include <iostream>
+#include <numeric>
+#include <initializer_list>
+#include <cstdlib>
+
 #include "fwd_device_gemm_launcher.h"
 
 #include "static_switch.h"
