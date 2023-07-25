@@ -77,20 +77,16 @@ def _fwd_kernel(
     lo = 0
     hi = (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX
     for start_n in range(lo, hi, BLOCK_N):
-        # -- compute qk ----
+        # -- load k, v --
         k = tl.load(k_ptrs)
         v = tl.load(v_ptrs)
+        # -- compute qk ----
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
-        
         if IS_CAUSAL:
             qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
         qk += tl.dot(q, k)
-        # -- compute m_ij, p, l_ij
-        m_ij = tl.max(qk, 1)
-        p = tl.math.exp2(qk - m_ij[:, None])
-        l_ij = tl.sum(p, 1)
-        # -- update m_i and l_i
-        m_i_new = tl.maximum(m_i, m_ij)
+        # -- compute scaling constant ---
+        m_i_new = tl.maximum(m_i, tl.max(qk, 1))
         alpha = tl.math.exp2(m_i - m_i_new)
         beta = tl.math.exp2(m_ij - m_i_new)
         l_i *= alpha
@@ -102,13 +98,8 @@ def _fwd_kernel(
         acc_scale = l_i / l_i_new
         acc = acc * acc_scale[:, None]
         # update acc
-<<<<<<< HEAD
         p = p.to(Q.dtype.element_ty)
         v = tl.load(v_ptrs)
-=======
-        
-        p = p.to(tl.float16)
->>>>>>> 36397026f... step 2: move load(v) up
         acc += tl.dot(p, v)
         # update m_i and l_i
         l_prev = l_curr
@@ -121,12 +112,12 @@ def _fwd_kernel(
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     # write back l and m
     l_ptrs = L + off_hz * N_CTX + offs_m
-    tl.store(l_ptrs, l_i)
+    tl.store(l_ptrs, m_i + tl.math.log2(l_i))
     # initialize pointers to output
     offs_n = tl.arange(0, BLOCK_DMODEL)
     off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
     out_ptrs = Out + off_o
-    tl.store(out_ptrs, acc)
+    tl.store(out_ptrs, acc.to(tl.float16))
 
 
 @triton.jit
