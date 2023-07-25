@@ -67,7 +67,7 @@ def _fwd_kernel(
     m_prev = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
     l_prev = tl.zeros([BLOCK_M], dtype=tl.float32)
     acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
-    # scale sm_scale by 1/log_2(e) and use
+    # scale sm_scale by log_2(e) and use
     # 2^x instead of exp in the loop because CSE and LICM
     # don't work as expected with `exp` in the loop
     qk_scale = sm_scale * 1.44269504
@@ -79,10 +79,12 @@ def _fwd_kernel(
     for start_n in range(lo, hi, BLOCK_N):
         # -- compute qk ----
         k = tl.load(k_ptrs)
+        v = tl.load(v_ptrs)
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
-        qk += tl.dot(q, k)
+        
         if IS_CAUSAL:
             qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
+        qk += tl.dot(q, k)
         # -- compute m_ij, p, l_ij
         m_ij = tl.max(qk, 1)
         p = tl.math.exp2(qk - m_ij[:, None])
@@ -100,8 +102,13 @@ def _fwd_kernel(
         acc_scale = l_i / l_i_new
         acc = acc * acc_scale[:, None]
         # update acc
+<<<<<<< HEAD
         p = p.to(Q.dtype.element_ty)
         v = tl.load(v_ptrs)
+=======
+        
+        p = p.to(tl.float16)
+>>>>>>> 36397026f... step 2: move load(v) up
         acc += tl.dot(p, v)
         # update m_i and l_i
         l_prev = l_curr
@@ -241,7 +248,7 @@ class _attention_triton(torch.autograd.Function):
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
         BLOCK_M = 128
-        BLOCK_N = 64
+        BLOCK_N = 32
         grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
