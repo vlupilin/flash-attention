@@ -23,13 +23,13 @@
 
 #pragma once
 
+#include <cstdlib>
+#include <initializer_list>
 #include <iostream>
-#include <vector>
-#include <memory>
+#include <numeric>
 
-#include "bwd_device_gemm_template.h"
 #include "launch_params.h"
-#include "device_memory_manager.h"
+#include "bwd_device_gemm_template.h"
 
 namespace bwd_device_gemm {
 template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
@@ -39,14 +39,14 @@ class DeviceGemmInstanceLauncher {
   explicit DeviceGemmInstanceLauncher()
     : device_gemm_instance_ptr_(std::make_unique<DeviceGemmTemplate<DeviceGemmTraits>>()) {}
 
-  void Launch(FlashBwdParams &params, hipStream_t &stream_);
+  void Launch(FlashBwdParams &params, hipStream_t &stream);
 
  private:
   std::unique_ptr<DeviceGemmTemplate<DeviceGemmTraits>> device_gemm_instance_ptr_;
 }; // class BwdDeviceGemmInstanceLauncher
 
 template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
-void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashBwdParams &params, hipStream_t &stream_) {
+void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashBwdParams &params, hipStream_t &stream) {
   bool time_kernel = false;
   bool input_permute = true;
   bool output_permute = true;
@@ -119,10 +119,11 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
                                       1}; // Y layout [G0, G1, M, O]
 
     std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
-    std::vector<ck::index_t> z_gs_ms_ns_strides = input_permute
-            ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1}
-            // Z layout [G0, M, G1, N]
-            : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+    std::vector<ck::index_t> z_gs_ms_ns_strides = 
+        input_permute
+        ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1}
+        // Z layout [G0, M, G1, N]
+        : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
     // The softmax stat log-sum-exp (LSE) is used to speed up softmax
     // calculation in backward pass Pi = exp(Si) / sum(exp(S0) + exp(S1) +
     // ...)
@@ -172,7 +173,7 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
     return;
   }
 
-  float avg_time = invoker.Run(argument, StreamConfig{stream_, time_kernel});
+  float avg_time = invoker.Run(argument, StreamConfig{stream, time_kernel});
 
   if (time_kernel) {
     std::cout << "time elpase is " << avg_time << " ms" << std::endl;

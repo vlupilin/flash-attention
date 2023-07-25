@@ -47,7 +47,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum DataType {kFloat16, kFloat32, kBFloat16, kInt32, kInt8};
+// enum DataType {kFloat16, kFloat32, kBFloat16, kInt32, kInt8};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -105,5 +105,18 @@ static std::tuple<uint64_t, uint64_t> unpack(at::PhiloxCudaState arg) {
 #endif
   }
 }
+
+class SimpleDeviceMem {
+ public:
+  SimpleDeviceMem() = delete;
+  explicit SimpleDeviceMem(std::size_t mem_size) 
+      : p_mem_{} { (void)hipMalloc(static_cast<void**>(&p_mem_), mem_size); }
+      
+    void* GetDeviceBuffer() const { return p_mem_; }
+    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
+
+ private:
+  void* p_mem_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

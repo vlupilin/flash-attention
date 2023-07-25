@@ -117,7 +117,7 @@ struct FlashFwdParams : public QkvParams {
   bool is_using_qloop;
 };
 
-struct FlashBwdParams : public QkvParams {
+struct FlashBwdParams : public FlashFwdParams {
   // The O matrix (output).
   std::vector<const void*> y_ptr;
   std::vector<void*> z_ptr;
@@ -163,18 +163,12 @@ struct FlashBwdParams : public QkvParams {
   std::vector<int> host_seqlens_k;
 
   int num_splits; // How many SMs per attention matrix.
-
-  bool is_bf16;
-  bool is_causal;
-  bool is_performance_mode;
-  bool is_deterministic;
-  bool is_using_qloop;
 };
 
 
 template<typename KernelParams>
 struct LaunchParams{
-  LaunchParams(hipDeviceProp_t * props,
+  LaunchParams(hipDeviceProp_t *props,
                hipStream_t stream,
                bool is_dropout,
                bool return_softmax)
@@ -192,4 +186,9 @@ struct LaunchParams{
   bool return_softmax_;
 
   KernelParams params;
+  int num_full_heads;
+  int num_main_groups;
+  int heads_last_wave;
+  int main_steps;
+  int rest_steps;
 };

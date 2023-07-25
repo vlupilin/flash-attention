@@ -6,6 +6,9 @@
 // 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <ATen/ATen.h>
+#include <torch/extension.h>
+
 #include "flash_fwd_runner_gfx90a.h"
 #include "flash_bwd_runner_gfx90a.h"
 
@@ -47,12 +50,12 @@ void set_params_fprop(FlashFwdParams &params,
                       const size_t h,
                       const size_t d,
                       // device pointers
-                      const at::Tensor& q,
-                      const at::Tensor& k,
-                      const at::Tensor& v,
-                      at::Tensor& out,
-                      const at::Tensor& cu_seqlens_q,
-                      const at::Tensor& cu_seqlens_k,
+                      const at::Tensor &q,
+                      const at::Tensor &k,
+                      const at::Tensor &v,
+                      at::Tensor &out,
+                      const at::Tensor &cu_seqlens_q,
+                      const at::Tensor &cu_seqlens_k,
                       void *o_tmp_d,
                       void *s_d,
                       void *softmax_lse_d,
@@ -163,16 +166,16 @@ void set_params_dgrad(FlashBwdParams &params,
                       const size_t h,
                       const size_t d,
                       // device pointers
-                      const at::Tensor& q,
-                      const at::Tensor& k,
-                      const at::Tensor& v,
-                      const at::Tensor& y,
-                      const at::Tensor& ygrad,
+                      const at::Tensor &q,
+                      const at::Tensor &k,
+                      const at::Tensor &v,
+                      const at::Tensor &y,
+                      const at::Tensor &ygrad,
                       at::Tensor &dq,
                       at::Tensor &dk,
                       at::Tensor &dv,
-                      const at::Tensor& cu_seqlens_q,
-                      const at::Tensor& cu_seqlens_k,
+                      const at::Tensor &cu_seqlens_q,
+                      const at::Tensor &cu_seqlens_k,
                       void *s_d,
                       void *softmax_lse_d,
                       float p_dropout,

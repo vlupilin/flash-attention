@@ -24,12 +24,9 @@
 #pragma once
 
 #include <iostream>
-#include <vector>
-#include <memory>
 
-#include "fwd_device_gemm_template.h"
 #include "launch_params.h"
-#include "device_memory_manager.h"
+#include "fwd_device_gemm_template.h"
 
 namespace fwd_device_gemm {
 template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
@@ -39,14 +36,14 @@ class DeviceGemmInstanceLauncher {
   explicit DeviceGemmInstanceLauncher()
     : device_gemm_instance_ptr_(std::make_unique<DeviceGemmTemplate<DeviceGemmTraits>>()) {}
   
-  void Launch(FlashFwdParams &params, hipStream_t &stream_);
+  void Launch(FlashFwdParams &params, hipStream_t &stream);
 
  private:
   std::unique_ptr<DeviceGemmTemplate<DeviceGemmTraits>> device_gemm_instance_ptr_;
 }; // class DeviceGemmInstanceLauncher
 
 template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
-void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashFwdParams &params, hipStream_t &stream_) {
+void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashFwdParams &params, hipStream_t &stream) {
   bool time_kernel = false;
   bool input_permute = true;
   bool output_permute = true;
@@ -177,7 +174,7 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
       return;
   }
 
-  float avg_time = invoker.Run(argument, StreamConfig{stream_, time_kernel});
+  float avg_time = invoker.Run(argument, StreamConfig{stream, time_kernel});
 
   if(time_kernel){
       std::cout << "time elpase is " << avg_time <<" ms" << std::endl;
