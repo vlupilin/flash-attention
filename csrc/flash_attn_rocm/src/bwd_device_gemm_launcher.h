@@ -40,14 +40,14 @@ class DeviceGemmInstanceLauncher {
   explicit DeviceGemmInstanceLauncher()
     : device_gemm_instance_ptr_(std::make_unique<DeviceGemmTemplate<DeviceGemmTraits>>()) {}
 
-  void Launch(FlashBwdParams &params);
+  void Launch(FlashBwdParams &params, hipStream_t &stream_);
 
  private:
   std::unique_ptr<DeviceGemmTemplate<DeviceGemmTraits>> device_gemm_instance_ptr_;
 }; // class BwdDeviceGemmInstanceLauncher
 
 template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
-void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashBwdParams &params) {
+void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashBwdParams &params, hipStream_t &stream_) {
   bool time_kernel = false;
   bool input_permute = true;
   bool output_permute = true;
@@ -173,10 +173,10 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
     return;
   }
 
-  float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+  float avg_time = invoker.Run(argument, StreamConfig{stream_, time_kernel});
 
   if (time_kernel) {
-    std::cout << "time elpase is " << ave_time << " ms" << std::endl;
+    std::cout << "time elpase is " << avg_time << " ms" << std::endl;
   }
 } // end of function Launch
 } // namespace bwd_device_gemm

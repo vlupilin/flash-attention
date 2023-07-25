@@ -33,10 +33,11 @@ class FlashFwdRunner {
   // constructor
   explicit FlashFwdRunner(LaunchParams<FlashFwdParams> &launch_params)
     : params_(launch_params.params),
-      is_deterministic_(launch_params.is_deterministic_),
-      is_performance_mode_(launch_params.is_performance_mode_) {}
+      stream_(launch_params.stream_),
+      is_deterministic_(launch_params.params.is_deterministic),
+      is_performance_mode_(launch_params.params.is_performance_mode) {}
  
-  template <int kHeadDim, typename T, bool kIsCasual>
+  template <bool kIsQLoop, int kHeadDim, typename T, bool kIsCausal>
   void Run();
  
  private:
@@ -51,10 +52,11 @@ class FlashFwdRunner {
                                                         kIsDeterministic>;
     using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
     auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
-    device_gemm_instance_ptr->Launch(params_);
+    device_gemm_instance_ptr->Launch(params_, stream_);
   }
 
   FlashFwdParams &params_;
+  hipStream_t &stream_;
   const bool is_deterministic_;
   const bool is_performance_mode_;
 }; // class FlashFwdRunnerBase

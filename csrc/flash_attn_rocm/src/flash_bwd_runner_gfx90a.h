@@ -33,16 +33,16 @@ class FlashBwdRunner {
   // constructor
   explicit FlashBwdRunner(LaunchParams<FlashBwdParams> &launch_params)
     : params_(launch_params.params),
-      is_deterministic_(launch_params.is_deterministic_),
-      is_performance_mode_(launch_params.is_performance_mode_) {}
+      stream_(launch_params.stream_),
+      is_deterministic_(launch_params.params.is_deterministic),
+      is_performance_mode_(launch_params.params.is_performance_mode) {}
 
-  template <int kHeadDim, typename T, bool kIsCasual>
+  template <bool kIsQLoop, int kHeadDim, typename T, bool kIsCausal>
   void Run();
 
  private:
   template <template <typename> typename DeviceGemmTemplate,
-            typename T, 
-            typename DropoutType, 
+            typename T,
             device_gemm_trait::MaskingSpec kMaskingSpec, 
             bool kIsDeterministic>
   void run_() {
@@ -52,30 +52,31 @@ class FlashBwdRunner {
       using DeviceGemmTraits = device_gemm_trait::Backward<T, 
                                                            T, 
                                                            device_gemm_trait::BFloat16, 
-                                                           DropoutType, 
-                                                           4, 
+                                                           device_gemm_trait::Int16, 
+                                                           8, 
                                                            kMaskingSpec, 
                                                            kIsDeterministic>;
       using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
       auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
-      device_gemm_instance_ptr->Launch(params_);
+      device_gemm_instance_ptr->Launch(params_, stream_);
     } else { 
       // unit test mode
       // input, output, gemm, dropout, cshuffle, masking specialization, deterministic
       using DeviceGemmTraits = device_gemm_trait::Backward<T, 
                                                            device_gemm_trait::Float32, 
                                                            T,
-                                                           DropoutType,
+                                                           std::conditional_t<std::is_same_v<T, device_gemm_trait::Float16>, device_gemm_trait::Int16, device_gemm_trait::Int32>,
                                                            4, 
                                                            kMaskingSpec, 
                                                            kIsDeterministic>;
       using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
       auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
-      device_gemm_instance_ptr->Launch(params_);
+      device_gemm_instance_ptr->Launch(params_, stream_);
     }
   }
 
   FlashBwdParams &params_;
+  hipStream_t &stream_;
   const bool is_deterministic_;
   const bool is_performance_mode_;
 }; // class FlashBwdRunner

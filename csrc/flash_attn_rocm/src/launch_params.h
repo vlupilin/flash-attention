@@ -109,6 +109,12 @@ struct FlashFwdParams : public QkvParams {
   std::vector<int> host_seqlens_k;
 
   int num_splits; // How many SMs per attention matrix.
+
+  bool is_bf16;
+  bool is_causal;
+  bool is_performance_mode;
+  bool is_deterministic;
+  bool is_using_qloop;
 };
 
 struct FlashBwdParams : public QkvParams {
@@ -157,6 +163,12 @@ struct FlashBwdParams : public QkvParams {
   std::vector<int> host_seqlens_k;
 
   int num_splits; // How many SMs per attention matrix.
+
+  bool is_bf16;
+  bool is_causal;
+  bool is_performance_mode;
+  bool is_deterministic;
+  bool is_using_qloop;
 };
 
 
@@ -165,38 +177,19 @@ struct LaunchParams{
   LaunchParams(hipDeviceProp_t * props,
                hipStream_t stream,
                bool is_dropout,
-               bool return_softmax,
-               bool is_bf16,
-               bool is_casual,
-               bool is_deterministic,
-               bool is_performance_mode)
+               bool return_softmax)
       : elts_per_thread_(0),
         props_(props), 
         stream_(stream), 
         is_dropout_(is_dropout), 
-        return_softmax_(return_softmax),
-        is_bf16_(is_bf16),
-        is_casual_(is_casual),
-        is_deterministic_(is_deterministic),
-        is_performance_mode_(is_performance_mode) {}
+        return_softmax_(return_softmax) {}
 
   size_t elts_per_thread_;
   hipDeviceProp_t * props_;
   hipStream_t stream_;
-
-  int num_full_heads;
-  int num_main_groups;
-  int heads_last_wave;
-  int main_steps;
-  int rest_steps;
   
   bool is_dropout_;
   bool return_softmax_;
-
-  bool is_bf16_;
-  bool is_casual_;
-  bool is_performance_mode_;
-  bool is_deterministic_;
 
   KernelParams params;
 };

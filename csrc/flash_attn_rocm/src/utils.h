@@ -15,11 +15,9 @@
 #include <torch/torch.h>
 
 #include "ck/ck.hpp"
-
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -29,7 +27,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_dropout.hpp"
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #define NEW_UNPACK (TORCH_VERSION_MAJOR * 10000 + TORCH_VERSION_MINOR * 100 + TORCH_VERSION_PATCH) > 11300
+
 
 #define FMHA_CHECK_HIP( call )                                                                     \
     do {                                                                                           \
@@ -44,25 +45,50 @@
         }                                                                                          \
     } while( 0 )
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 enum DataType {kFloat16, kFloat32, kBFloat16, kInt32, kInt8};
 
-static inline size_t get_size_in_bytes( size_t n, DataType dtype ) {
-    switch( dtype ) {
-    case kFloat32:
-        return n * 4;
-    case kFloat16:
-        return n * 2;
-    case kBFloat16:
-        return n * 2;
-    case kInt32:
-        return n * 4;
-    case kInt8:
-        return n;
-    default:
-        assert( false );
-        return 0;
-    }
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//static inline void set_alpha( uint32_t &alpha, float norm, Data_type dtype ) {
+//    if( dtype == DATA_TYPE_FP16 ) {
+//        ck::half_t x = ck::type_convert<ck::half_t>( norm );
+//        uint16_t h = reinterpret_cast<const uint16_t &>( x );
+//        ushort2 h2 = { h, h };
+//        alpha = reinterpret_cast<const uint32_t &>( h2 );
+//    } else if( dtype == DATA_TYPE_BF16 ) {
+//        ck::bhalf_t x = ck::type_convert<ck::bhalf_t>( norm );
+//        uint16_t h = reinterpret_cast<const uint16_t &>( x );
+//        ushort2 h2 = { h, h };
+//        alpha = reinterpret_cast<const uint32_t &>( h2 );
+//    } else if( dtype == DATA_TYPE_FP32 ) {
+//        alpha = reinterpret_cast<const uint32_t &>( norm );
+//    } else if( dtype == DATA_TYPE_INT32 ) {
+//        int32_t inorm = static_cast<int32_t>( norm );
+//        alpha = reinterpret_cast<const uint32_t &>( inorm );
+//    } else {
+//        assert( false );
+//    }
+//}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static inline size_t get_size_in_bytes( size_t n, auto dtype ) {
+  if(dtype == torch::kFloat32){
+    return n * 4;
+  }else if(dtype == torch::kBFloat16){
+    return n * 2;
+  }else if(dtype == torch::kFloat16){
+    return n * 2;
+  }else if(dtype == torch::kInt32){
+    return n * 4;
+  }else if(dtype == torch::kInt8){
+    return n; 
+  }
+  return 0;
 }
+
 
 static std::tuple<uint64_t, uint64_t> unpack(at::PhiloxCudaState arg) {
   if (arg.captured_) {
@@ -79,3 +105,5 @@ static std::tuple<uint64_t, uint64_t> unpack(at::PhiloxCudaState arg) {
 #endif
   }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
