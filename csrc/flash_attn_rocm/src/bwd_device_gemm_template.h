@@ -251,8 +251,8 @@ using DeviceGemmKLoopHeadDim32 = device_op::DeviceGroupedMultiheadAttentionBackw
         DeviceGemmTraits::kTensorSpecQ, 
         DeviceGemmTraits::kTensorSpecK,
         DeviceGemmTraits::kTensorSpecV, 
-        DeviceGemmTraits::kTensorSpecY, 
-        1, 
+        DeviceGemmTraits::kTensorSpecY,
+        1,
         256,
         128,         // MPerBlock
         128,         // NPerBlock
@@ -269,28 +269,21 @@ using DeviceGemmKLoopHeadDim32 = device_op::DeviceGroupedMultiheadAttentionBackw
         1,           // Gemm1NXdlPerWave
         1,           // Gemm2NXdlPerWave
         device_gemm_trait::S<4, 64, 1>, // ABlockTransfer
-        device_gemm_trait::S<1, 0, 2>, 
-        device_gemm_trait::S<1, 0, 2>, 
-        2, 
-        8, 
-        8, 
+        device_gemm_trait::S<1, 0, 2>,
+        device_gemm_trait::S<1, 0, 2>,
+        2,
+        8,
+        8,
         true,
         device_gemm_trait::S<4, 64, 1>, // BBlockTransfer
-        device_gemm_trait::S<1, 0, 2>, 
-        device_gemm_trait::S<1, 0, 2>, 
-        2, 
-        8, 
-        8, 
+        device_gemm_trait::S<1, 0, 2>,
+        device_gemm_trait::S<1, 0, 2>,
+        2,
+        8,
+        8,
         true,
-        device_gemm_trait::S<8, 32, 1>, // B1BlockTransfer
-        device_gemm_trait::S<0, 2, 1>, 
-        device_gemm_trait::S<0, 2, 1>, 
-        1, 
-        4, 
-        2, 
-        false,
-        1, // CShuffleMXdlPerWavePerShuffle
-        1, // CShuffleNXdlPerWavePerShuffle
+        1,              // CShuffleMXdlPerWavePerShuffle
+        1,              // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         DeviceGemmTraits::kCShuffleBlockTransferScalarPerVectorNPerBlock, // c_shuffle_block_transfer_scalar_per_vector_n_per_block
         DeviceGemmTraits::kMaskingSpec, // MaskingSpec
@@ -302,7 +295,7 @@ using DeviceGemmKLoopHeadDim64 = device_op::DeviceGroupedMultiheadAttentionBackw
         DeviceGemmTraits::kNumDimG, 
         DeviceGemmTraits::kNumDimM, 
         DeviceGemmTraits::kNumDimN, 
-        DeviceGemmTraits::kNumDimK, 
+        DeviceGemmTraits::kNumDimK,
         DeviceGemmTraits::kNumDimO, 
         typename DeviceGemmTraits::InputDataType, 
         typename DeviceGemmTraits::OutputDataType, 
@@ -322,8 +315,8 @@ using DeviceGemmKLoopHeadDim64 = device_op::DeviceGroupedMultiheadAttentionBackw
         DeviceGemmTraits::kTensorSpecQ, 
         DeviceGemmTraits::kTensorSpecK,
         DeviceGemmTraits::kTensorSpecV, 
-        DeviceGemmTraits::kTensorSpecY, 
-        1, 
+        DeviceGemmTraits::kTensorSpecY,
+        1,
         256,
         128,         // MPerBlock
         128,         // NPerBlock
@@ -340,28 +333,21 @@ using DeviceGemmKLoopHeadDim64 = device_op::DeviceGroupedMultiheadAttentionBackw
         2,           // Gemm1NXdlPerWave
         2,           // Gemm2NXdlPerWave
         device_gemm_trait::S<4, 64, 1>, // ABlockTransfer
-        device_gemm_trait::S<1, 0, 2>, 
-        device_gemm_trait::S<1, 0, 2>, 
-        2, 
-        8, 
-        8, 
+        device_gemm_trait::S<1, 0, 2>,
+        device_gemm_trait::S<1, 0, 2>,
+        2,
+        8,
+        8,
         true,
         device_gemm_trait::S<4, 64, 1>, // BBlockTransfer
-        device_gemm_trait::S<1, 0, 2>, 
-        device_gemm_trait::S<1, 0, 2>, 
-        2, 
-        8, 
-        8, 
+        device_gemm_trait::S<1, 0, 2>,
+        device_gemm_trait::S<1, 0, 2>,
+        2,
+        8,
+        8,
         true,
-        device_gemm_trait::S<8, 32, 1>, // B1BlockTransfer
-        device_gemm_trait::S<0, 2, 1>, 
-        device_gemm_trait::S<0, 2, 1>, 
-        1, 
-        4, 
-        2, 
-        false,
-        1, // CShuffleMXdlPerWavePerShuffle
-        2, // CShuffleNXdlPerWavePerShuffle
+        1,              // CShuffleMXdlPerWavePerShuffle
+        2,              // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         DeviceGemmTraits::kCShuffleBlockTransferScalarPerVectorNPerBlock, // c_shuffle_block_transfer_scalar_per_vector_n_per_block
         DeviceGemmTraits::kMaskingSpec, // MaskingSpec
