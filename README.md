@@ -144,9 +144,17 @@ pytest -q -s tests/test_flash_attn.py
 To install (requiring ROCm, and MI210 or MI250 GPU):
 You can compile from source:
 ```
-Launch docker rocm/pytorch:rocm5.4_ubuntu20.04_py3.8_pytorch_1.12.1
+Launch docker rocm/pytorch:rocm5.4.2_ubuntu20.04_py3.8_pytorch_2.0.0_preview
 Enter flash_attention
-$patch /opt/conda/lib/python3.8/site-packages/torch/utils/hipify/hipify_python.py hipify_patch.patch
+$patch /opt/conda/envs/py_3.8/lib/python3.8/site-packages/torch/utils/hipify/hipify_python.py hipify_patch.patch
+$python setup.py install
+```
+
+```
+Launch docker rocm/pytorch:rocm5.4_ubuntu20.04_py3.8_pytorch_1.12.1
+or any pytorch 1.13.1 docker
+Enter flash_attention
+$patch /opt/conda/lib/python3.8/site-packages/torch/utils/hipify/hipify_python.py hipify_patch_1.12.patch
 $python setup.py install
 ```
 
@@ -170,43 +178,42 @@ Benchmark results(MI250, deterministic off, unit test mode off, RTZ):
 ```
 PYTHONPATH=$PWD python benchmarks/benchmark_flash_attention.py
 FlashAttention - Forward pass
-  8.33 ms
+  8.23 ms
   1 measurement, 30 runs , 128 threads
 FlashAttention - Backward pass
-  30.65 ms
+  29.06 ms
   1 measurement, 30 runs , 128 threads
 FlashAttention - Forward + Backward pass
-  39.46 ms
+  37.88 ms
   1 measurement, 30 runs , 128 threads
 PyTorch Standard Attention - Forward pass
-  26.29 ms
+  26.28 ms
   1 measurement, 30 runs , 128 threads
 PyTorch Standard Attention - Backward pass
-  63.14 ms
+  63.20 ms
   1 measurement, 30 runs , 128 threads
 PyTorch Standard Attention - Forward + Backward pass
-  89.36 ms
+  89.37 ms
   1 measurement, 30 runs , 128 threads
 ```
 
 ### Unit Test Mode
 #### How to build
-In order to pass unit tests, several changes are needed.
 
-Firstly, build flash-attention from source with RTZ disabled, by changing the compiling flag in the setup.py:
+For passing unit tests compile flash-attention from source which may take a while:
 ```
--DFLASH_ATTENTION_INTERNAL_USE_RTZ=0
-```
-
-Then compile flash-attention from source which may take a while:
-```
-python setup.py install
+FLASH_ATTENTION_INTERNAL_USE_RTZ=0 python setup.py install
 ```
 
 Before running unit tests, the unit test mode and deterministic flags should be both turned on by setting the environment variables:
 ```sh
 export FLASH_ATTENTION_INTERNAL_DETERMINISTIC=1
 export FLASH_ATTENTION_INTERNAL_UNIT_TEST_MODE=1
+```
+
+By default we are using qloop. If you want to use kloop, please turn on the kloop flag by setting the environment variable:
+```sh
+export FLASH_ATTENTION_INTERNAL_USE_KLOOP=1
 ```
 
 Run the unit tests:

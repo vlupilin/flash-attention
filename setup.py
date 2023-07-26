@@ -170,6 +170,7 @@ ext_modules.append(
                     "-DNDEBUG",
                     "-U__CUDA_NO_HALF_OPERATORS__",
                     "-U__CUDA_NO_HALF_CONVERSIONS__",
+
                 ]
                 + generator_flag
                 + cc_flag

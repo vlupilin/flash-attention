@@ -570,6 +570,16 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
         dv.copy_(dv_tmp, true);
     }
 
+        if(!q.is_contiguous()){
+            dq.copy_(torch::cat(launch_params.params.qgrad_tensors, 0), true);
+        }
+        if(!k.is_contiguous()){
+            dk.copy_(torch::cat(launch_params.params.kgrad_tensors, 0), true);
+        }
+        if(!v.is_contiguous()){
+            dv.copy_(torch::cat(launch_params.params.vgrad_tensors, 0), true);
+        }
+    }
     return { dq, dk, dv, softmax_d };
 }
 
