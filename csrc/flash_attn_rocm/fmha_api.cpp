@@ -73,10 +73,6 @@ void set_params_fprop(FlashFwdParams &params,
 
     params.is_bf16 = (q.dtype() == at::kBFloat16);
 
-    // S = softmax(P)     //TO DO
-    // params.s_ptr = s_d;
-    // params.s_stride_in_bytes = get_size_in_bytes(b * h * seqlen_k, data_type);
-
     // Set the dimensions.
     params.b = b;                 // batch_size
     params.h = h;                 // num_heads
@@ -192,16 +188,6 @@ void set_params_dgrad(FlashBwdParams &params,
     memset(&params, 0, sizeof(params));
 
     params.is_bf16 = q.dtype() == at::kBFloat16;
-
-    // params.cu_seqlens_q = static_cast<int *>(cu_seqlens_q_d);
-    // params.cu_seqlens_k = static_cast<int *>(cu_seqlens_k_d);
-
-    // S = softmax(P)
-    // params.s_ptr = s_d;
-    // params.s_stride_in_bytes = get_size_in_bytes(b * h * seqlen_k, data_type);
-
-    // Softmax sum
-    // params.softmax_lse_ptr = softmax_lse_d;
 
     // Set the dimensions.
     params.b = b;
@@ -339,8 +325,6 @@ mha_fwd(const at::Tensor &q,
     TORCH_CHECK(k.is_cuda());
     TORCH_CHECK(v.is_cuda());
     TORCH_CHECK(out.is_cuda());
-    // TORCH_CHECK(cu_seqlens_q.is_cuda());
-    // TORCH_CHECK(cu_seqlens_k.is_cuda());
 
     TORCH_CHECK(q.stride(-1) == 1);
     TORCH_CHECK(k.stride(-1) == 1);
@@ -367,12 +351,9 @@ mha_fwd(const at::Tensor &q,
     CHECK_SHAPE(cu_seqlens_q, batch_size + 1);
     CHECK_SHAPE(cu_seqlens_k, batch_size + 1);
 
-    at::cuda::HIPGuard device_guard{(char)q.get_device()};
-    // bool loop = false;
-
     // Otherwise the kernel will be launched from cuda:0 device
     // Cast to char to avoid compiler warning about narrowing
-    // at::cuda::CUDAGuard device_guard{(char)q.get_device()};
+    at::cuda::HIPGuard device_guard{(char)q.get_device()};
 
     auto opts = q.options();
 
@@ -412,9 +393,6 @@ mha_fwd(const at::Tensor &q,
     // number of times random will be generated per thread, to offset philox counter in thc random
     // state
     // We use a custom RNG that increases the offset by batch_size * nheads * 32.
-    
-
-    // at::PhiloxCudaState rng_engine_inputs;
 
     if( is_dropout ) {
         // See Note [Acquire lock when using random generators]
@@ -483,8 +461,6 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     TORCH_CHECK(out.is_cuda());
     TORCH_CHECK(dout.is_cuda());
     TORCH_CHECK(softmax_lse.is_cuda());
-    // TORCH_CHECK(cu_seqlens_q.is_cuda());
-    // TORCH_CHECK(cu_seqlens_k.is_cuda());
 
     TORCH_CHECK(q.stride(-1) == 1);
     TORCH_CHECK(k.stride(-1) == 1);
@@ -518,116 +494,82 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     CHECK_SHAPE(cu_seqlens_q, batch_size + 1);
     CHECK_SHAPE(cu_seqlens_k, batch_size + 1);
 
-    // int blocksize_c = (head_size > 64 || (head_size > 32)) ? 128 : 256;
-    at::cuda::HIPGuard device_guard{(char)q.get_device()};
     // Otherwise the kernel will be launched from cuda:0 device
     // Cast to char to avoid compiler warning about narrowing
-    // at::cuda::CUDAGuard device_guard{(char)q.get_device()};
+    at::cuda::HIPGuard device_guard{(char)q.get_device()};
 
-    // It's possible the softmax_lse_ from the fwd has a different length since blocksize_c could be different.
-    // auto softmax_lse = softmax_lse_.index({torch::indexing::Slice(), torch::indexing::Slice(), torch::indexing::Slice(torch::indexing::None, max_seqlen_q)}).contiguous();
-
-    // at::Tensor softmax_d = at::empty(dq.sizes(), dq.options()).contiguous();
     at::Tensor softmax_d;
+    at::Tensor dq_tmp;
+    at::Tensor dk_tmp;
+    at::Tensor dv_tmp;
 
-    if (zero_tensors) {
-        dq.zero_();
-        dk.zero_();
-        dv.zero_();
-        // softmax_d.zero_();
+    if(is_performance_mode){
+        dq_tmp = dq;
+        dk_tmp = dk;
+        dv_tmp = dv;
+    }else{
+        dq_tmp = dq.to(torch::kFloat32);
+        dk_tmp = dk.to(torch::kFloat32);
+        dv_tmp = dv.to(torch::kFloat32);
     }
     
-    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
-        gen_, at::cuda::detail::getDefaultCUDAGenerator());
-
-    if(!is_performance_mode){
-        at::Tensor dq_tmp = at::empty(dq.sizes(), dq.options().dtype(at::kFloat)).contiguous();
-        at::Tensor dk_tmp = at::empty(dk.sizes(), dk.options().dtype(at::kFloat)).contiguous();
-        at::Tensor dv_tmp = at::empty(dv.sizes(), dv.options().dtype(at::kFloat)).contiguous();
+    if (zero_tensors) {
         dq_tmp.zero_();
         dk_tmp.zero_();
         dv_tmp.zero_();
-        set_params_dgrad(launch_params.params,
-                        batch_size,
-                        max_seqlen_q,
-                        max_seqlen_k,
-                        num_heads,
-                        head_size,
-                        q, k, v, out,
-                        dout, dq_tmp, dk_tmp, dv_tmp,
-                        cu_seqlens_q,
-                        cu_seqlens_k,
-                        nullptr,
-                        softmax_lse.data_ptr(),
-                        p_dropout,
-                        softmax_scale,
-                        is_causal,
-                        is_deterministic,
-                        is_performance_mode,
-                        is_using_qloop);
-
-        
-        if( is_dropout ) {
-            // See Note [Acquire lock when using random generators]
-            int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
-            std::lock_guard<std::mutex> lock(gen->mutex_);
-            launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
-        }
-
-        run_flash_bwd(launch_params);
-        if(!q.is_contiguous()){
-            dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
-        }
-        if(!k.is_contiguous()){
-            dk_tmp.copy_(torch::cat(launch_params.params.kgrad_tensors, 0).contiguous(), true);
-        }
-        if(!v.is_contiguous()){
-            dv_tmp.copy_(torch::cat(launch_params.params.vgrad_tensors, 0).contiguous(), true);
-        }
-
-        dq.copy_(dq_tmp, true);
-        dk.copy_(dk_tmp, true);
-        dv.copy_(dv_tmp, true);
-    }else{
-        set_params_dgrad(launch_params.params,
-                         batch_size,
-                         max_seqlen_q,
-                         max_seqlen_k,
-                         num_heads,
-                         head_size,
-                         q, k, v, out,
-                         dout, dq, dk, dv,
-                         cu_seqlens_q,
-                         cu_seqlens_k,
-                         nullptr,
-                         softmax_lse.data_ptr(),
-                         p_dropout,
-                         softmax_scale,
-                         is_causal,
-                         is_deterministic,
-                         is_performance_mode,
-                         is_using_qloop);
-
-        
-        if( is_dropout ) {
-            // See Note [Acquire lock when using random generators]
-            int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
-            std::lock_guard<std::mutex> lock(gen->mutex_);
-            launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
-        }
-
-        run_flash_bwd(launch_params);
-
-        if(!q.is_contiguous()){
-            dq.copy_(torch::cat(launch_params.params.qgrad_tensors, 0), true);
-        }
-        if(!k.is_contiguous()){
-            dk.copy_(torch::cat(launch_params.params.kgrad_tensors, 0), true);
-        }
-        if(!v.is_contiguous()){
-            dv.copy_(torch::cat(launch_params.params.vgrad_tensors, 0), true);
-        }
+        // softmax_d.zero_();
     }
+
+    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
+        gen_, at::cuda::detail::getDefaultCUDAGenerator());
+
+    set_params_dgrad(launch_params.params,
+                     batch_size,
+                     max_seqlen_q,
+                     max_seqlen_k,
+                     num_heads,
+                     head_size,
+                     q, k, v, out,
+                     dout, dq_tmp, dk_tmp, dv_tmp,
+                     cu_seqlens_q,
+                     cu_seqlens_k,
+                     nullptr,
+                     softmax_lse.data_ptr(),
+                     p_dropout,
+                     softmax_scale,
+                     is_causal,
+                     is_deterministic,
+                     is_performance_mode,
+                     is_using_qloop);
+        
+    if( is_dropout ) {
+        // See Note [Acquire lock when using random generators]
+        int64_t counter_offset = launch_params.params.b * launch_params.params.h * 32;
+        std::lock_guard<std::mutex> lock(gen->mutex_);
+        launch_params.params.philox_args = gen->philox_cuda_state(counter_offset);
+    }
+
+    run_flash_bwd(launch_params);
+
+    if(!q.is_contiguous()){
+        dq_tmp.copy_(torch::cat(launch_params.params.qgrad_tensors, 0).contiguous(), true);
+    }
+    if(dq.data_ptr() != dq_tmp.data_ptr()){
+        dq.copy_(dq_tmp, true);
+    }
+    if(!k.is_contiguous()){
+        dk_tmp.copy_(torch::cat(launch_params.params.kgrad_tensors, 0).contiguous(), true);
+    }
+    if(dk.data_ptr() != dk_tmp.data_ptr()){
+        dk.copy_(dk_tmp, true);
+    }
+    if(!v.is_contiguous()){
+        dv_tmp.copy_(torch::cat(launch_params.params.vgrad_tensors, 0).contiguous(), true);
+    }
+    if(dv.data_ptr() != dv_tmp.data_ptr()){
+        dv.copy_(dv_tmp, true);
+    }
+
     return { dq, dk, dv, softmax_d };
 }
 
@@ -642,7 +584,7 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     }
 #endif
 
-#if 0
+#ifndef BUILD_PYTHON_PACKAGE
 //main function to test with the API
 bool fwd_test(bool do_verification){
     int batch_size = 64;
