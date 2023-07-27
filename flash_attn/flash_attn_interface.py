@@ -231,7 +231,7 @@ class _attention_triton(torch.autograd.Function):
             BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_DMODEL=Lk,
             IS_CAUSAL=causal,
             num_warps=num_warps,
-            num_stages=2,
+            num_stages=1,
         )
         # print(h.asm["ttgir"])
 
