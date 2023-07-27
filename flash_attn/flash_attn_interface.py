@@ -19,6 +19,7 @@ def _get_block_size(device, head_dim, is_dropout):
     assert head_dim % 8 == 0 and head_dim <= 128
     return 256 if head_dim <= 64 else 128
 
+
 @triton.jit
 def _fwd_kernel(
     Q, K, V, sm_scale,
