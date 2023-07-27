@@ -20,6 +20,20 @@ def _get_block_size(device, head_dim, is_dropout):
     return 256 if head_dim <= 64 else 128
 
 
+@triton.autotune(
+    configs=[
+        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 32}, num_warps=2),
+        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=2),
+        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=4),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=2),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=4),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=8),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=4),
+    ],
+    key = ['N_CTX'],
+)
 @triton.jit
 def _fwd_kernel(
     Q, K, V, sm_scale,
@@ -228,10 +242,11 @@ class _attention_triton(torch.autograd.Function):
             v.stride(0), v.stride(1), v.stride(2), v.stride(3),
             o.stride(0), o.stride(1), o.stride(2), o.stride(3),
             q.shape[0], q.shape[1], q.shape[2],
-            BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_DMODEL=Lk,
+            # BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, 
+            BLOCK_DMODEL=Lk,
             IS_CAUSAL=causal,
-            num_warps=num_warps,
-            num_stages=2,
+            # num_warps=num_warps,
+            # num_stages=2,
         )
         # print(h.asm["ttgir"])
 
