@@ -11,6 +11,7 @@ from flash_attn.bert_padding import unpad_input, pad_input
 from flash_attn.flash_attn_interface import flash_attn_unpadded_qkvpacked_func, flash_attn_triton
 
 
+
 def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
     """
     Arguments:
@@ -34,6 +35,43 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
     output = torch.einsum('bhts,bshd->bthd', attention_drop , v)
     # return output.to(dtype=qkv.dtype), attention.to(dtype=qkv.dtype)
     return output.to(dtype=qkv.dtype)
+
+
+def test_op(Z, H, N_CTX, D_HEAD, causal, sm_scale, dtype=torch.float16):
+    torch.manual_seed(20)
+    q = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0., std=0.5).requires_grad_()
+    k = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0., std=0.5).requires_grad_()
+    v = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0., std=0.5).requires_grad_()
+    dout = torch.randn_like(q)
+    # reference implementation
+    M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
+    p = torch.matmul(q, k.transpose(2, 3)) * sm_scale
+    if causal:
+        p[:, :, M == 0] = float("-inf")
+    p = torch.softmax(p.float(), dim=-1).half()
+    # p = torch.exp(p)
+    ref_out = torch.matmul(p, v)
+    # ref_out.backward(dout)
+    # ref_dv, v.grad = v.grad.clone(), None
+    # ref_dk, k.grad = k.grad.clone(), None
+    # ref_dq, q.grad = q.grad.clone(), None
+    # triton implementation
+    tri_out = flash_attn_triton(q, k, v, causal, sm_scale).half()
+    # tri_out.backward(dout)
+    # tri_dv, v.grad = v.grad.clone(), None
+    # tri_dk, k.grad = k.grad.clone(), None
+    # tri_dq, q.grad = q.grad.clone(), None
+    # compare
+    # assert torch.allclose(ref_out, tri_out, atol=1e-2, rtol=1e-2)
+    if torch.allclose(ref_out, tri_out, atol=1e-2, rtol=0):
+        print("✅ Triton and Torch match")
+    else:
+        print("❌ Triton and Torch differ")
+        # print("ref_out = ", ref_out)
+        # print("triton_out = ", tri_out)
+    # assert torch.allclose(ref_dv, tri_dv, atol=1e-2, rtol=0)
+    # assert torch.allclose(ref_dk, tri_dk, atol=1e-2, rtol=0)
+    # assert torch.allclose(ref_dq, tri_dq, atol=1e-2, rtol=0)
 
 
 torch.manual_seed(0)
@@ -77,6 +115,8 @@ for bs in batch_size:
         v = torch.transpose(v, 1, 2)
         sm_scale = q.shape[-1] ** (-0.5)
         qkv_triton = torch.stack([q, k, v], dim=2)
+
+        # test_op(bs, nheads, sq, d, False, sm_scale)
 
         ## Triton FA implementation
         fn = lambda flash_triton:flash_attn_triton(q, k, v, causal, 1.3)
@@ -124,6 +164,8 @@ for bs in batch_size:
         v = torch.transpose(v, 1, 2)
         sm_scale = q.shape[-1] ** (-0.5)
         qkv_triton = torch.stack([q, k, v], dim=2)
+
+        # test_op(bs, nheads, sq, d, False, sm_scale)
 
         ## Triton FA implementation
         fn = lambda flash_triton:flash_attn_triton(q, k, v, causal, 1.3)

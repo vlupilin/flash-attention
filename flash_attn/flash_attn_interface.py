@@ -246,7 +246,6 @@ class _attention_triton(torch.autograd.Function):
         assert Lq == Lk and Lk == Lv
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
-        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         m = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
@@ -256,6 +255,11 @@ class _attention_triton(torch.autograd.Function):
         else:
             modes = [0]
 
+        # grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+        def get_grid(**kwargs):
+            return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
+        
+        grid = lambda META: get_grid(**META)
         for mode in modes:
             _fwd_kernel[grid](
                 q, k, v, sm_scale,
