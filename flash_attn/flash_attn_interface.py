@@ -214,11 +214,13 @@ class _attention_triton(torch.autograd.Function):
         o = torch.empty_like(q)
         BLOCK_M = 128
         BLOCK_N = 32
-        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
-
         num_warps = 4 if Lk <= 64 else 8
 
+        # use kernel arguments to compute grid dims so we can do autotuning correctly.
+        def get_grid(**kwargs):
+            return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
+        grid = lambda META: get_grid(**META)
         _fwd_kernel[grid](
             q, k, v, sm_scale,
             L,
