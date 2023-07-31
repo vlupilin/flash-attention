@@ -279,7 +279,6 @@ void set_params_dgrad(FlashBwdParams &params,
     // Set the different scale values.
     // const float scale_bmm1 = 1.f / sqrtf(d);
     params.scale_bmm1f = softmax_scale;
-    //set_alpha(params.scale_bmm1, scale_bmm1, data_type);
 
     // Set this to probability of keeping an element to simplify things.
     params.p_dropout = p_dropout;
@@ -568,17 +567,6 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
     }
     if(dv.data_ptr() != dv_tmp.data_ptr()){
         dv.copy_(dv_tmp, true);
-    }
-
-        if(!q.is_contiguous()){
-            dq.copy_(torch::cat(launch_params.params.qgrad_tensors, 0), true);
-        }
-        if(!k.is_contiguous()){
-            dk.copy_(torch::cat(launch_params.params.kgrad_tensors, 0), true);
-        }
-        if(!v.is_contiguous()){
-            dv.copy_(torch::cat(launch_params.params.vgrad_tensors, 0), true);
-        }
     }
     return { dq, dk, dv, softmax_d };
 }
