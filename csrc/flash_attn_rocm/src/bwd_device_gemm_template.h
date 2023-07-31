@@ -282,13 +282,6 @@ using DeviceGemmKLoopHeadDim32 = device_op::DeviceGroupedMultiheadAttentionBackw
         8, 
         8, 
         true,
-        device_gemm_trait::S<8, 32, 1>, // B1BlockTransfer
-        device_gemm_trait::S<0, 2, 1>, 
-        device_gemm_trait::S<0, 2, 1>, 
-        1, 
-        4, 
-        2, 
-        false,
         1, // CShuffleMXdlPerWavePerShuffle
         1, // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
@@ -353,13 +346,6 @@ using DeviceGemmKLoopHeadDim64 = device_op::DeviceGroupedMultiheadAttentionBackw
         8, 
         8, 
         true,
-        device_gemm_trait::S<8, 32, 1>, // B1BlockTransfer
-        device_gemm_trait::S<0, 2, 1>, 
-        device_gemm_trait::S<0, 2, 1>, 
-        1, 
-        4, 
-        2, 
-        false,
         1, // CShuffleMXdlPerWavePerShuffle
         2, // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
