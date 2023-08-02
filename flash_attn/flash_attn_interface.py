@@ -297,7 +297,7 @@ class _attention_triton(torch.autograd.Function):
             num_stages=1,
         )
         # print(h.asm["ttgir"])
-        return dq, dk, dv, None
+        return dq, dk, dv, None, None
 
 def flash_attn_triton(q, k, v, causal, softmax_scale=None):
     """dropout_p should be set to 0.0 during evaluation
