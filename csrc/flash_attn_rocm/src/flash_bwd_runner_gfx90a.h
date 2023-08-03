@@ -42,14 +42,15 @@ class FlashBwdRunner {
       is_deterministic_(launch_params.params.is_deterministic),
       is_performance_mode_(launch_params.params.is_performance_mode) {}
 
-  template <bool kIsQLoop, int kHeadDim, typename T, bool kIsCausal>
+  template <bool kIsQLoop, int kHeadDim, typename T, bool kIsCausal, bool kIsBatched=false>
   void Run();
 
  private:
   template <template <typename> typename DeviceGemmTemplate,
             typename T,
             device_gemm_trait::MaskingSpec kMaskingSpec, 
-            bool kIsDeterministic>
+            bool kIsDeterministic,
+            bool kIsBatched=false>
   void run_() {
     if (is_performance_mode_) {
       // benchmark mode
@@ -61,7 +62,7 @@ class FlashBwdRunner {
                                                            8, 
                                                            kMaskingSpec, 
                                                            kIsDeterministic>;
-      using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
+      using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched>;
       auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
       device_gemm_instance_ptr->Launch(params_, stream_);
     } else { 
@@ -74,7 +75,7 @@ class FlashBwdRunner {
                                                            4, 
                                                            kMaskingSpec, 
                                                            kIsDeterministic>;
-      using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>;
+      using DeviceGemmInstance = DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched>;
       auto device_gemm_instance_ptr = std::make_unique<DeviceGemmInstance>();
       device_gemm_instance_ptr->Launch(params_, stream_);
     }

@@ -26,7 +26,7 @@
 namespace fwd_device_gemm {
 // hdim 128, fp16, non-causal
 template <>
-void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, false>() {
+void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, false, false>() {
   BOOL_SWITCH(is_deterministic_, kIsDeterministic, [&] {
     this->template run_<DeviceGemmKLoopHeadDim128,
                   device_gemm_trait::Float16, 

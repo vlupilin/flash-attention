@@ -29,25 +29,26 @@
 #include "fwd_device_gemm_template.h"
 
 namespace fwd_device_gemm {
-template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
+template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits, bool kIsBatched=false>
 class DeviceGemmInstanceLauncher {
  public:
   // constructor
   explicit DeviceGemmInstanceLauncher()
-    : device_gemm_instance_ptr_(std::make_unique<DeviceGemmTemplate<DeviceGemmTraits>>()) {}
+    : device_gemm_instance_ptr_(std::make_unique<DeviceGemmTemplate<DeviceGemmTraits>>()), invoker_(device_gemm_instance_ptr_->MakeInvoker()) {}
   
   void Launch(FlashFwdParams &params, hipStream_t &stream);
 
  private:
   std::unique_ptr<DeviceGemmTemplate<DeviceGemmTraits>> device_gemm_instance_ptr_;
+  typename DeviceGemmTemplate<DeviceGemmTraits>::Invoker invoker_;
 }; // class DeviceGemmInstanceLauncher
 
-template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits>
-void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(FlashFwdParams &params, hipStream_t &stream) {
-  bool time_kernel = false;
-  bool input_permute = true;
-  bool output_permute = true;
-  bool z_tensor_permute = false;
+template <template <typename> typename DeviceGemmTemplate, typename DeviceGemmTraits, bool kIsBatched>
+void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched>::Launch(FlashFwdParams &params, hipStream_t &stream) {
+  constexpr bool time_kernel = false;
+  constexpr bool input_permute = true;
+  constexpr bool output_permute = true;
+  constexpr bool z_tensor_permute = false;
 
   float alpha = params.scale_bmm1f;
 
@@ -61,10 +62,8 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
   auto p_b0 = params.k_ptr;
   auto p_b1 = params.v_ptr;
   auto p_c = params.o_ptr;
-  auto p_z = params.s_ptr;
+  auto p_z = params.z_ptr;
   auto p_lse = params.softmax_lse_ptr;
-
-  std::vector<typename DeviceGemmTemplate<DeviceGemmTraits>::ProblemDesc> problem_descs;
 
   int batch_size = params.b;
   int num_heads = params.h;
@@ -77,17 +76,15 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
   auto seed_   = std::get<0>(seeds);
   auto offset_ = std::get<1>(seeds);
 
-  //std::cout << "fwd seed is " << seed_ ;
-  //std::cout << " , fwd offset is " << offset_ << std::endl;
+  std::unique_ptr<ck::tensor_operation::device::BaseArgument> argument;
 
-  for(size_t i = 0; i < batch_size ; i++){
-    int M     = params.host_seqlens_q[i + 1] - params.host_seqlens_q[i]; //seqlen Q
-    int N     = params.host_seqlens_k[i + 1] - params.host_seqlens_k[i]; //seqlen K
-    int K     = head_dim;
-    int O     = head_dim;
+  if constexpr(kIsBatched) {
+    int M = params.seqlen_q; // seqlen Q
+    int N = params.seqlen_k; // seqlen K
+    int K = head_dim;
+    int O = head_dim;
     int G0 = 1; // G0 = batch_size
     int G1 = num_heads;
-    
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
     std::vector<ck::index_t> a_gs_ms_ks_strides =
@@ -123,58 +120,133 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
     std::vector<ck::index_t> lse_gs_ms_strides =
         std::vector<ck::index_t>{G1 * M, M, 1}; // LSE layout [G0, G1, M]
 
-    problem_descs.push_back({a_gs_ms_ks_lengths,
-                            a_gs_ms_ks_strides,
-                            b0_gs_ns_ks_lengths,
-                            b0_gs_ns_ks_strides,
-                            b1_gs_os_ns_lengths,
-                            b1_gs_os_ns_strides,
-                            c_gs_ms_os_lengths,
-                            c_gs_ms_os_strides,
-                            z_gs_ms_ns_lengths,
-                            z_gs_ms_ns_strides,
-                            lse_gs_ms_lengths,
-                            lse_gs_ms_strides,
-                            {},   // acc0_biases_gs_ms_ns_lengths
-                            {},   // acc0_biases_gs_ms_ns_strides
-                            {},   // acc1_biases_gs_ms_os_lengths
-                            {}}); // acc1_biases_gs_ms_os_strides
-                              
+    argument = std::move(device_gemm_instance_ptr_->MakeArgumentPointer(
+        static_cast<typename DeviceGemmTraits::ADataType*>(const_cast<void*>(p_a[0])),
+        static_cast<typename DeviceGemmTraits::B0DataType*>(const_cast<void*>(p_b0[0])),
+        static_cast<typename DeviceGemmTraits::B1DataType*>(const_cast<void*>(p_b1[0])),
+        static_cast<typename DeviceGemmTraits::CDataType*>(p_c[0]),
+        static_cast<typename DeviceGemmTraits::ZDataType*>(p_z[0]),
+        static_cast<typename DeviceGemmTraits::LSEDataType*>(p_lse[0]),
+        {}, // std::array<void*, 1> p_acc0_biases;
+        {}, // std::array<void*, 1> p_acc1_biases;
+        a_gs_ms_ks_lengths,
+        a_gs_ms_ks_strides,
+        b0_gs_ns_ks_lengths,
+        b0_gs_ns_ks_strides,
+        b1_gs_os_ns_lengths,
+        b1_gs_os_ns_strides,
+        c_gs_ms_os_lengths,
+        c_gs_ms_os_strides,
+        z_gs_ms_ns_lengths,
+        z_gs_ms_ns_strides,
+        lse_gs_ms_lengths,
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc0_biases_gs_ms_ns_strides},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_lengths},
+        {}, // std::array<std::vector<ck::index_t>, 1>{acc1_biases_gs_ms_os_strides},
+        a_element_op,
+        b0_element_op,
+        acc0_element_op,
+        b1_element_op,
+        c_element_op,
+        dropout_ratio,
+        seeds));
+  }else{
+    std::vector<typename DeviceGemmTemplate<DeviceGemmTraits>::ProblemDesc> problem_descs;
+    for(size_t i = 0; i < batch_size ; i++){
+        int M     = params.host_seqlens_q[i + 1] - params.host_seqlens_q[i]; //seqlen Q
+        int N     = params.host_seqlens_k[i + 1] - params.host_seqlens_k[i]; //seqlen K
+        int K     = head_dim;
+        int O     = head_dim;
+        int G0 = 1; // G0 = batch_size
+        int G1 = num_heads;
+
+        std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
+        std::vector<ck::index_t> a_gs_ms_ks_strides =
+            input_permute
+                ? std::vector<ck::index_t>{M * G1 * K, K, G1 * K, 1} // A layout [G0, M, G1, K]
+                : std::vector<ck::index_t>{G1 * M * K, M * K, K, 1}; // A layout [G0, G1, M, K]
+
+        std::vector<ck::index_t> b0_gs_ns_ks_lengths{G0, G1, N, K};
+        std::vector<ck::index_t> b0_gs_ns_ks_strides =
+            input_permute
+                ? std::vector<ck::index_t>{N * G1 * K, K, G1 * K, 1} // B0 layout [G0, N, G1, K]
+                : std::vector<ck::index_t>{G1 * N * K, N * K, K, 1}; // B0 layout [G0, G1, N, K]
+
+        std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
+        std::vector<ck::index_t> b1_gs_os_ns_strides =
+            input_permute
+                ? std::vector<ck::index_t>{N * G1 * O, O, 1, G1 * O} // B1 layout [G0, N, G1, O]
+                : std::vector<ck::index_t>{G1 * N * O, N * O, 1, O}; // B1 layout [G0, G1, N, O]
+
+        std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
+        std::vector<ck::index_t> c_gs_ms_os_strides =
+            output_permute
+                ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
+                : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+        
+        std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
+        std::vector<ck::index_t> z_gs_ms_ns_strides =
+            z_tensor_permute
+                ? std::vector<ck::index_t>{M * G1 * N, N, G1 * N, 1} // Z layout [G0, M, G1, N]
+                : std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // Z layout [G0, G1, M, N]
+
+        std::vector<ck::index_t> lse_gs_ms_lengths{G0, G1, M};
+        std::vector<ck::index_t> lse_gs_ms_strides =
+            std::vector<ck::index_t>{G1 * M, M, 1}; // LSE layout [G0, G1, M]
+
+        problem_descs.push_back({a_gs_ms_ks_lengths,
+                                a_gs_ms_ks_strides,
+                                b0_gs_ns_ks_lengths,
+                                b0_gs_ns_ks_strides,
+                                b1_gs_os_ns_lengths,
+                                b1_gs_os_ns_strides,
+                                c_gs_ms_os_lengths,
+                                c_gs_ms_os_strides,
+                                z_gs_ms_ns_lengths,
+                                z_gs_ms_ns_strides,
+                                lse_gs_ms_lengths,
+                                lse_gs_ms_strides,
+                                {},   // acc0_biases_gs_ms_ns_lengths
+                                {},   // acc0_biases_gs_ms_ns_strides
+                                {},   // acc1_biases_gs_ms_os_lengths
+                                {}}); // acc1_biases_gs_ms_os_strides
+                                
+    }
+  
+    // do GEMM
+    argument = std::move(device_gemm_instance_ptr_->MakeArgumentPointer(
+        p_a,
+        p_b0,
+        p_b1,
+        p_c,
+        p_z,
+        p_lse,
+        {},
+        {},
+        problem_descs,
+        a_element_op,
+        b0_element_op,
+        acc0_element_op,
+        b1_element_op,
+        c_element_op,
+        dropout_ratio,
+        seeds));
+
+    // specify workspace for problem_desc
+    SimpleDeviceMem problem_desc_workspace{device_gemm_instance_ptr_->GetWorkSpaceSize(argument.get())};
+
+    device_gemm_instance_ptr_->SetWorkSpacePointer(argument.get(), problem_desc_workspace.GetDeviceBuffer());
   }
 
-  // do GEMM
-  auto invoker  = device_gemm_instance_ptr_->MakeInvoker();
-  auto argument = device_gemm_instance_ptr_->MakeArgument(
-      p_a,
-      p_b0,
-      p_b1,
-      p_c,
-      p_z,
-      p_lse,
-      {},
-      {},
-      problem_descs,
-      a_element_op,
-      b0_element_op,
-      acc0_element_op,
-      b1_element_op,
-      c_element_op,
-      dropout_ratio,
-      seeds);
-
-  // specify workspace for problem_desc
-  SimpleDeviceMem problem_desc_workspace{device_gemm_instance_ptr_->GetWorkSpaceSize(&argument)};
-
-  device_gemm_instance_ptr_->SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
-
-  if(!device_gemm_instance_ptr_->IsSupportedArgument(argument))
+  if(!device_gemm_instance_ptr_->IsSupportedArgument(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get())))
   {
       std::cout << device_gemm_instance_ptr_->GetTypeString() << " does not support this problem" << std::endl;
 
       return;
   }
 
-  float avg_time = invoker.Run(argument, StreamConfig{stream, time_kernel});
+  float avg_time = invoker_.Run(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get()), StreamConfig{stream, time_kernel});
 
   if(time_kernel){
       std::cout << "time elpase is " << avg_time <<" ms" << std::endl;
