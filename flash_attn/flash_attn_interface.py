@@ -19,7 +19,20 @@ def _get_block_size(device, head_dim, is_dropout):
     assert head_dim % 8 == 0 and head_dim <= 128
     return 256 if head_dim <= 64 else 128
 
-
+@triton.autotune(
+    configs=[
+        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 32}, num_warps=2),
+        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=2),
+        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=4),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=2),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=4),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=8),
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=4),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=8),
+        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=4),
+    ],
+    key = ['N_CTX'],
+)
 @triton.jit
 def _fwd_kernel(
     Q, K, V, sm_scale,
@@ -233,7 +246,6 @@ class _attention_triton(torch.autograd.Function):
         assert Lq == Lk and Lk == Lv
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
-        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         m = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
@@ -243,6 +255,11 @@ class _attention_triton(torch.autograd.Function):
         else:
             modes = [0]
 
+        def get_grid(**kwargs):
+            return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
+
+        # grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+        grid = lambda META: get_grid(**META)
         for mode in modes:
             _fwd_kernel[grid](
                 q, k, v, sm_scale,
