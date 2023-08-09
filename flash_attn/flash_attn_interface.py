@@ -47,14 +47,24 @@ def _fwd_kernel(
     BLOCK_N: tl.constexpr,
     MODE: tl.constexpr
 ):
+    # 0-7
     start_m = tl.program_id(0)
+    # 0-63 but is actually set as batch x heads
     off_hz = tl.program_id(1)
+    # strideqh is 64k so this is effectively skipping an entire head's worth of values for 1024x64
     qvk_offset = off_hz * stride_qh
     # initialize offsets
+    # Offs_m is a vector. It is made because arange produces a vector between 0, BLOCK_M
+    # It effectively gives all addrs 0-1023 (or more specifically, 0-seqlen), per off_hz
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
+    # 0-63 but really head dim
     offs_d = tl.arange(0, BLOCK_DMODEL)
+    #       -Pick b/h-   --- pick row within b/h ---   ------ elem in row ------
     off_q = qvk_offset + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    # This is similar to above, but note the reversal of broadcast. This effectively
+    # transposes the block to load. As a result, see below that tl.dot(q,k) does not do a
+    # transpose on K, as the attention algorithm requires.
     off_k = qvk_offset + offs_n[None, :] * stride_kn + offs_d[:, None] * stride_kk
     off_v = qvk_offset + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
     # Initialize pointers to Q, K, V
@@ -86,6 +96,9 @@ def _fwd_kernel(
     for start_n in range(lo, hi, BLOCK_N):
         # -- compute qk ----
         k = tl.load(k_ptrs)
+        # On first reading this I was puzzled as to why we're resetting qk each time.
+        # We should be accumulating future partial products. But reading more, acc is the variable
+        # we use here to accumulate. qk is just temporary. We accumulate into acc and also scale acc
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
         qk += tl.dot(q, k)
         if MODE == 1 or MODE == 3:
@@ -117,12 +130,19 @@ def _fwd_kernel(
         k_ptrs += BLOCK_N * stride_kn
         v_ptrs += BLOCK_N * stride_vk
     # write back l and m
+    # L and M are pointers to start. These are 1D vectors unlike qkv.
+    # off_hz x N_CTX just gets us the start pointer for that batch x head. offs_m gets us element
+    # within that batch/head.
     l_ptrs = L + off_hz * N_CTX + offs_m
     m_ptrs = M + off_hz * N_CTX + offs_m
     tl.store(l_ptrs, l_i)
     tl.store(m_ptrs, m_i)
     # initialize pointers to output
     offs_n = tl.arange(0, BLOCK_DMODEL)
+    # This is just picking a batch / head combination (using off_hz x stride_oh) and
+    # a row within that (from offs_m * stride)om, stride_om being the row stride)
+    # and finally a element within that row. These are all vectors using broadcasting
+    # So what we get is a 2D block starting at that element (as a result of :, None and None, :).
     off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
     out_ptrs = Out + off_o
     tl.store(out_ptrs, acc)
@@ -258,6 +278,7 @@ class _attention_triton(torch.autograd.Function):
         def get_grid(**kwargs):
             return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
 
+        # grid = [8, 64, 1]. In a triton jit'ed function, this translates to program_id(0,1)
         # grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         grid = lambda META: get_grid(**META)
         for mode in modes:
