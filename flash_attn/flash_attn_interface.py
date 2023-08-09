@@ -33,6 +33,8 @@ def _get_block_size(device, head_dim, is_dropout):
     ],
     key = ['N_CTX'],
 )
+
+# Note that these comments are with bs=4, seq=1024, nheads=16, dmodel=64, blockM=128 and blockN=64.
 @triton.jit
 def _fwd_kernel(
     Q, K, V, sm_scale,
@@ -148,13 +150,21 @@ def _fwd_kernel(
     tl.store(out_ptrs, acc)
 
 
+# This kernel is interesting. I believe it is done to implement the multiplication with 1/Li 
+# in the bwd pass. In the paper https://arxiv.org/pdf/2205.14135.pdf
+# Look at algorithm 4 on page 21, step 13. Notice the diag(li) term. It is not with do, but with
+# a term labeled p (btw p is in the bwd_kernel). But note steop 16, where do multiplies with p. 
+# This is a trick to pre-multiply do so we do not need to do this step in a nested loop.
 @triton.jit
 def _bwd_preprocess(
     Out, DO, L,
     NewDO, Delta,
     BLOCK_M: tl.constexpr, D_HEAD: tl.constexpr,
 ):
+    # These are for BLOCK=64, ctx[0] = 8 and ctx[1] = 64. Batch=4, dhead=64, seq=1024, nhead=16
+    # This goes from 0-63, starting at multiplies of 64.
     off_m = tl.program_id(0) * BLOCK_M + tl.arange(0, BLOCK_M)
+    # 0-63
     off_n = tl.arange(0, D_HEAD)
     # load
     o = tl.load(Out + off_m[:, None] * D_HEAD + off_n[None, :]).to(tl.float32)
