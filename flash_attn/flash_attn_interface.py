@@ -19,20 +19,22 @@ def _get_block_size(device, head_dim, is_dropout):
     assert head_dim % 8 == 0 and head_dim <= 128
     return 256 if head_dim <= 64 else 128
 
-@triton.autotune(
-    configs=[
-        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 32}, num_warps=2),
-        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=2),
-        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=4),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=2),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=4),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=8),
-        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=4),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=8),
-        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=4),
-    ],
-    key = ['N_CTX'],
-)
+# TODO: Reenable autotune for bwd after we can handle different M and N sizes.
+#@triton.autotune(
+#    configs=[
+#        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 32}, num_warps=2),
+#        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=2),
+#        triton.Config({'BLOCK_M': 32, 'BLOCK_N': 64}, num_warps=4),
+#        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=2),
+#        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32}, num_warps=4),
+#        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=8),
+#        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 64}, num_warps=4),
+#        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=8),
+#        triton.Config({'BLOCK_M': 64, 'BLOCK_N': 128}, num_warps=4),
+#    ],
+#    key = ['N_CTX'],
+#)
+
 @triton.jit
 def _fwd_kernel(
     Q, K, V, sm_scale,
@@ -258,8 +260,9 @@ class _attention_triton(torch.autograd.Function):
         def get_grid(**kwargs):
             return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
 
-        # grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
-        grid = lambda META: get_grid(**META)
+        # grid = [8, 64, 1]. In a triton jit'ed function, this translates to program_id(0,1)
+        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+        #grid = lambda META: get_grid(**META)
         for mode in modes:
             _fwd_kernel[grid](
                 q, k, v, sm_scale,
@@ -293,6 +296,11 @@ class _attention_triton(torch.autograd.Function):
         dv = torch.empty_like(v)
         do_scaled = torch.empty_like(do)
         delta = torch.empty_like(l)
+        # Figure out what BLOCK size fwd used and adjust num_blocks accordingly.
+        # If the two are the same, we don't need this but the bwd pass block size
+        # is smaller than the fwd so we need this scaling to ensure we loop over all
+        # values and don't skip some blocks.
+        block_scale = (q.shape[2] // ctx.grid[0]) // BLOCK
         _bwd_preprocess[(ctx.grid[0] * ctx.grid[1], )](
             o, do, l,
             do_scaled, delta,
@@ -308,7 +316,7 @@ class _attention_triton(torch.autograd.Function):
             k.stride(0), k.stride(1), k.stride(2), k.stride(3),
             v.stride(0), v.stride(1), v.stride(2), v.stride(3),
             q.shape[0], q.shape[1], q.shape[2],
-            ctx.grid[0],
+            block_scale * ctx.grid[0],
             BLOCK_M=BLOCK, BLOCK_N=BLOCK,
             BLOCK_DMODEL=ctx.BLOCK_DMODEL, num_warps=4,
             num_stages=1,

@@ -72,7 +72,7 @@ for bs in batch_size:
         triton_time = fa_measurement.mean;
         # 5x because the backward pass has 5 dot products, all of the same size
         # 2x because each MAC has 2 ops.
-        flops_per_matmul = 5. * bs * nheads * sq * sq * d
+        flops_per_matmul = 7. * bs * nheads * sq * sq * d
         total_flops = 2 * flops_per_matmul
         if causal:
            total_flops *= .5
@@ -106,7 +106,7 @@ for bs in batch_size:
         triton_time = fa_measurement.mean;
         # 5x because the backward pass has 5 dot products, all of the same size
         # 2x because each MAC has 2 ops.
-        flops_per_matmul = 5. * bs * nheads * sq * sq * d
+        flops_per_matmul = 7. * bs * nheads * sq * sq * d
         total_flops = 2 * flops_per_matmul
         if causal:
             total_flops *= .5
