@@ -58,7 +58,7 @@ def _fwd_kernel(
     qk_scale = sm_scale * 1.44269504
     # load q: it will stay in SRAM throughout
     q = tl.load(q_ptrs)
-    q = (q * qk_scale).to(tl.float16)
+    q = (q * qk_scale).to(tl.bfloat16)
     # loop over k, v and update accumulator
     lo = 0
     hi = (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX
@@ -78,7 +78,7 @@ def _fwd_kernel(
         # -- scale and update acc --
         acc_scale = l_i * 0 + alpha  # workaround some compiler bug
         acc *= acc_scale[:, None]
-        acc += tl.dot(p.to(tl.float16), v)
+        acc += tl.dot(p.to(tl.bfloat16), v)
         # update m_i and l_i
         l_i = l_i * alpha + tl.sum(p, 1)
         m_i = m_i_new
@@ -93,7 +93,7 @@ def _fwd_kernel(
     offs_n = tl.arange(0, BLOCK_DMODEL)
     off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
     out_ptrs = Out + off_o
-    tl.store(out_ptrs, acc.to(tl.float16))
+    tl.store(out_ptrs, acc.to(tl.bfloat16))
 
 
 @triton.jit
@@ -213,7 +213,7 @@ class _attention_triton(torch.autograd.Function):
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
         BLOCK_M = 128
-        BLOCK_N = 64
+        BLOCK_N = 32
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
 

@@ -37,11 +37,11 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 
 
 torch.manual_seed(0)
-repeats = 250
+repeats = 25
 
 dropout_p = 0.1
 causal = False
-dtype = torch.float16
+dtype = torch.bfloat16
 device = 'cuda'
 
 ## table 1
