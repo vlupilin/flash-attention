@@ -213,7 +213,7 @@ class _attention_triton(torch.autograd.Function):
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
         BLOCK_M = 128
-        BLOCK_N = 32
+        BLOCK_N = 64
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
 
