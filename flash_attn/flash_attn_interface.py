@@ -175,6 +175,9 @@ def _bwd_kernel(
     DQ += off_z * stride_qz + off_h * stride_qh
     DK += off_z * stride_qz + off_h * stride_qh
     DV += off_z * stride_qz + off_h * stride_qh
+    # Absorb log2(e) into SM scale so we can use exp2 below. See fwd kernel
+    # implementation above.
+    qk_scale = sm_scale * 1.44269504
     for start_n in range(0, num_block):
         lo = start_n * BLOCK_M
         # initialize row/col offsets
@@ -184,7 +187,7 @@ def _bwd_kernel(
         offs_k = tl.arange(0, BLOCK_DMODEL)
         # initialize pointers to value-like data
         q_ptrs = Q + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
-        k_ptrs = K + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
+        k_ptrs = K + (offs_n[None, :] * stride_kn + offs_k[:, None] * stride_kk)
         v_ptrs = V + (offs_n[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         do_ptrs = DO + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         dq_ptrs = DQ + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
@@ -204,10 +207,10 @@ def _bwd_kernel(
             q = tl.load(q_ptrs)
             # recompute p = softmax(qk, dim=-1).T
             # NOTE: `do` is pre-divided by `l`; no normalization here
-            qk = tl.dot(q, tl.trans(k))
+            qk = tl.dot(q, k)
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             m = tl.load(m_ptrs + offs_m_curr)
-            p = tl.exp(qk * sm_scale - m[:, None])
+            p = tl.math.exp2(qk * qk_scale - m[:, None])
             # compute dv
             do = tl.load(do_ptrs)
             dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
@@ -318,7 +321,7 @@ class _attention_triton(torch.autograd.Function):
             q.shape[0], q.shape[1], q.shape[2],
             block_scale * ctx.grid[0],
             BLOCK_M=BLOCK, BLOCK_N=BLOCK,
-            BLOCK_DMODEL=ctx.BLOCK_DMODEL, num_warps=4,
+            BLOCK_DMODEL=ctx.BLOCK_DMODEL, num_warps=8,
             num_stages=1,
         )
         # print(h.asm["ttgir"])
