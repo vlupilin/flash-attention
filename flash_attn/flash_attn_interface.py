@@ -175,6 +175,8 @@ def _bwd_kernel(
     DQ += off_z * stride_qz + off_h * stride_qh
     DK += off_z * stride_qz + off_h * stride_qh
     DV += off_z * stride_qz + off_h * stride_qh
+    # See fwd pass above for explanation.
+    qk_scale = sm_scale * 1.44269504
     for start_n in range(0, num_block):
         lo = start_n * BLOCK_M
         # initialize row/col offsets
@@ -207,7 +209,7 @@ def _bwd_kernel(
             qk = tl.dot(q, tl.trans(k))
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             m = tl.load(m_ptrs + offs_m_curr)
-            p = tl.exp(qk * sm_scale - m[:, None])
+            p = tl.math.exp2(qk * sm_scale - m[:, None])
             # compute dv
             do = tl.load(do_ptrs)
             dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
