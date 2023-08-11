@@ -240,17 +240,5 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched
       std::cout << "time elpase is " << avg_time << " ms" << std::endl;
     }
   }
-
-  // if (!device_gemm_instance_ptr_->IsSupportedArgument(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get()))) {
-  //   std::cout << device_gemm_instance_ptr_->GetTypeString() << " does not support this problem"
-  //             << std::endl;
-  //   return;
-  // }
-
-  // float avg_time = invoker_.Run(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get()), StreamConfig{stream, time_kernel});
-
-  // if (time_kernel) {
-  //   std::cout << "time elpase is " << avg_time << " ms" << std::endl;
-  // }
 } // end of function Launch
 } // namespace bwd_device_gemm
