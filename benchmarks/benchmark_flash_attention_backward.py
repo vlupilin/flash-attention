@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from functools import partial
 import math
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,6 +37,41 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
     # return output.to(dtype=qkv.dtype), attention.to(dtype=qkv.dtype)
     return output.to(dtype=qkv.dtype)
 
+
+@pytest.mark.parametrize('Z, H, N_CTX, D_HEAD', [(4, 16, 1024, 64)])
+def test_op(Z, H, N_CTX, D_HEAD, dtype=torch.float16):
+    torch.manual_seed(0)
+    q = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.1, std=0.2).requires_grad_()
+    k = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.4, std=0.2).requires_grad_()
+    v = torch.empty((Z, H, N_CTX, D_HEAD), dtype=dtype, device="cuda").normal_(mean=0.3, std=0.2).requires_grad_()
+    dout = torch.randn_like(q)
+    # reference implementation
+    M = torch.tril(torch.ones((N_CTX, N_CTX), device="cuda"))
+    # This is from the attn algorithm
+    sm_scale = q.shape[-1] ** (-0.5)
+    p = torch.matmul(q, k.transpose(2, 3)) * sm_scale
+    p = torch.softmax(p.float(), dim=-1).half()
+    ref_out = torch.matmul(p, v)
+    ref_out.backward(dout)
+    ref_dv, v.grad = v.grad.clone(), None
+    ref_dk, k.grad = k.grad.clone(), None
+    ref_dq, q.grad = q.grad.clone(), None
+    # triton implementation
+    tri_out = flash_attn_triton(q, k, v, False, sm_scale).half()
+    tri_out.backward(dout)
+    tri_dv, v.grad = v.grad.clone(), None
+    tri_dk, k.grad = k.grad.clone(), None
+    tri_dq, q.grad = q.grad.clone(), None
+    # compare
+    assert torch.allclose(ref_out, tri_out, atol=1e-2, rtol=0)
+    if torch.version.hip is None:
+        assert torch.allclose(ref_dv, tri_dv, atol=1e-2, rtol=0)
+    # The current block size for MI200 series is 64x64. This results in
+    # larger differences in float results due to rounding.
+    else:
+        assert torch.allclose(ref_dv, tri_dv, atol=0.5, rtol=0)
+    assert torch.allclose(ref_dk, tri_dk, atol=1e-2, rtol=0)
+    assert torch.allclose(ref_dq, tri_dq, atol=1e-2, rtol=0)
 
 torch.manual_seed(0)
 repeats = 25
