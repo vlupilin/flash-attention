@@ -66,9 +66,8 @@ struct FlashFwdParams : public QkvParams {
   // the loop;
   void *__restrict__ o_tmp_ptr;
 
-  // The pointer to the S matrix.
-  // void * __restrict__ s_ptr;
-  std::vector<void*> s_ptr;
+  // The pointer to the z matrix.
+  std::vector<void*> z_ptr;
   // The stride between rows of the S matrix.
   // int64_t s_stride_in_bytes;
   uint32_t s_stride_in_bytes;
@@ -115,12 +114,12 @@ struct FlashFwdParams : public QkvParams {
   bool is_performance_mode;
   bool is_deterministic;
   bool is_using_qloop;
+  bool is_batched;
 };
 
 struct FlashBwdParams : public FlashFwdParams {
   // The O matrix (output).
   std::vector<const void*> y_ptr;
-  std::vector<void*> z_ptr;
   std::vector<const void*> lse_ptr;
   std::vector<const void*> ygrad_ptr;
   std::vector<void*> qgrad_ptr;
@@ -163,6 +162,7 @@ struct FlashBwdParams : public FlashFwdParams {
   std::vector<int> host_seqlens_k;
 
   int num_splits; // How many SMs per attention matrix.
+  bool is_batched;
 };
 
 

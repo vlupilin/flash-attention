@@ -26,7 +26,7 @@
 namespace fwd_device_gemm {
 // hdim 64, bf16, causal
 template <>
-void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true>() {
+void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true, false>() {
   BOOL_SWITCH(is_deterministic_, kIsDeterministic, [&] {
     this->template run_<DeviceGemmQLoopHeadDim64,
                   device_gemm_trait::BFloat16, 
