@@ -76,14 +76,13 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched
   auto seed_   = std::get<0>(seeds);
   auto offset_ = std::get<1>(seeds);
 
-  std::unique_ptr<ck::tensor_operation::device::BaseArgument> argument;
 
   if constexpr(kIsBatched) {
     int M = params.seqlen_q; // seqlen Q
     int N = params.seqlen_k; // seqlen K
     int K = head_dim;
     int O = head_dim;
-    int G0 = 1; // G0 = batch_size
+    int G0 = batch_size; // G0 = batch_size
     int G1 = num_heads;
 
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
@@ -120,7 +119,7 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched
     std::vector<ck::index_t> lse_gs_ms_strides =
         std::vector<ck::index_t>{G1 * M, M, 1}; // LSE layout [G0, G1, M]
 
-    argument = std::move(device_gemm_instance_ptr_->MakeArgumentPointer(
+    auto argument = device_gemm_instance_ptr_->MakeArgument(
         static_cast<typename DeviceGemmTraits::ADataType*>(const_cast<void*>(p_a[0])),
         static_cast<typename DeviceGemmTraits::B0DataType*>(const_cast<void*>(p_b0[0])),
         static_cast<typename DeviceGemmTraits::B1DataType*>(const_cast<void*>(p_b1[0])),
@@ -150,7 +149,20 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched
         b1_element_op,
         c_element_op,
         dropout_ratio,
-        seeds));
+        seeds);
+
+    if(!device_gemm_instance_ptr_->IsSupportedArgument(argument))
+    {
+        std::cout << device_gemm_instance_ptr_->GetTypeString() << " does not support this problem" << std::endl;
+
+        return;
+    }
+
+    float avg_time = invoker_.Run(argument, StreamConfig{stream, time_kernel});
+
+    if(time_kernel){
+        std::cout << "time elpase is " << avg_time <<" ms" << std::endl;
+    }
   }else{
     std::vector<typename DeviceGemmTemplate<DeviceGemmTraits>::ProblemDesc> problem_descs;
     for(size_t i = 0; i < batch_size ; i++){
@@ -215,7 +227,7 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched
     }
   
     // do GEMM
-    argument = std::move(device_gemm_instance_ptr_->MakeArgumentPointer(
+    auto argument = device_gemm_instance_ptr_->MakeArgument(
         p_a,
         p_b0,
         p_b1,
@@ -231,25 +243,37 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits, kIsBatched
         b1_element_op,
         c_element_op,
         dropout_ratio,
-        seeds));
+        seeds);
 
     // specify workspace for problem_desc
-    SimpleDeviceMem problem_desc_workspace{device_gemm_instance_ptr_->GetWorkSpaceSize(argument.get())};
+    SimpleDeviceMem problem_desc_workspace{device_gemm_instance_ptr_->GetWorkSpaceSize(&argument)};
 
-    device_gemm_instance_ptr_->SetWorkSpacePointer(argument.get(), problem_desc_workspace.GetDeviceBuffer());
+    device_gemm_instance_ptr_->SetWorkSpacePointer(&argument, problem_desc_workspace.GetDeviceBuffer());
+    if(!device_gemm_instance_ptr_->IsSupportedArgument(argument))
+    {
+        std::cout << device_gemm_instance_ptr_->GetTypeString() << " does not support this problem" << std::endl;
+
+        return;
+    }
+
+    float avg_time = invoker_.Run(argument, StreamConfig{stream, time_kernel});
+
+    if(time_kernel){
+        std::cout << "time elpase is " << avg_time <<" ms" << std::endl;
+    }
   }
 
-  if(!device_gemm_instance_ptr_->IsSupportedArgument(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get())))
-  {
-      std::cout << device_gemm_instance_ptr_->GetTypeString() << " does not support this problem" << std::endl;
+//   if(!device_gemm_instance_ptr_->IsSupportedArgument(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get())))
+//   {
+//       std::cout << device_gemm_instance_ptr_->GetTypeString() << " does not support this problem" << std::endl;
 
-      return;
-  }
+//       return;
+//   }
 
-  float avg_time = invoker_.Run(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get()), StreamConfig{stream, time_kernel});
+//   float avg_time = invoker_.Run(*dynamic_cast<typename DeviceGemmTemplate<DeviceGemmTraits>::Argument*>(argument.get()), StreamConfig{stream, time_kernel});
 
-  if(time_kernel){
-      std::cout << "time elpase is " << avg_time <<" ms" << std::endl;
-  }
+//   if(time_kernel){
+//       std::cout << "time elpase is " << avg_time <<" ms" << std::endl;
+//   }
 }
 } // namespace fwd_device_gemm

@@ -69,7 +69,7 @@ void set_params_fprop(FlashFwdParams &params,
                       bool is_deterministic,
                       bool is_using_qloop) {
 
-    auto acc_type = torch::kFloat32;
+    constexpr auto acc_type = torch::kFloat32;
     auto data_type = q.dtype();
 
     // Reset the parameters
@@ -89,7 +89,7 @@ void set_params_fprop(FlashFwdParams &params,
         auto q_temp = q.contiguous();
         params.q_tensors.push_back(q_temp);
         params.q_ptr.push_back(reinterpret_cast<void*>(q_temp.data_ptr()));
-        auto k_temp = q.contiguous();
+        auto k_temp = k.contiguous();
         params.k_tensors.push_back(k_temp);
         params.k_ptr.push_back(reinterpret_cast<void*>(k_temp.data_ptr()));
         auto v_temp = v.contiguous();
@@ -199,7 +199,7 @@ void set_params_dgrad(FlashBwdParams &params,
                       bool is_performance_mode,
                       bool is_using_qloop) {
 
-    auto acc_type = torch::kFloat32;
+    constexpr auto acc_type = torch::kFloat32;
     auto data_type = q.dtype();
 
     // Reset the parameters
