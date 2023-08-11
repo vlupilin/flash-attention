@@ -209,7 +209,7 @@ def _bwd_kernel(
             qk = tl.dot(q, tl.trans(k))
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             m = tl.load(m_ptrs + offs_m_curr)
-            p = tl.math.exp2(qk * sm_scale - m[:, None])
+            p = tl.math.exp2(qk * qk_scale - m[:, None])
             # compute dv
             do = tl.load(do_ptrs)
             dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
