@@ -164,7 +164,7 @@ def _bwd_kernel(
         # initialize pointers to value-like data
         q_ptrs = Q + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         k_ptrs = K + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
-        v_ptrs = V + (offs_n[:, None] * stride_qm + offs_k[None, :] * stride_qk)
+        v_ptrs = V + (offs_n[None, :] * stride_qm + offs_k[:, None] * stride_qk)
         do_ptrs = DO + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         dq_ptrs = DQ + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         # pointer to row-wise quantities in value-like data
@@ -193,7 +193,7 @@ def _bwd_kernel(
             # compute dp = dot(v, do)
             Di = tl.load(D_ptrs + offs_m_curr)
             dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
-            dp += tl.dot(do, tl.trans(v))
+            dp += tl.dot(do, v)
             # compute ds = p * (dp - delta[:, None])
             ds = p * dp * sm_scale
             # compute dk = dot(ds.T, q)
