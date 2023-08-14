@@ -37,7 +37,7 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 
 
 torch.manual_seed(0)
-repeats = 25
+repeats = 2
 
 dropout_p = 0.1
 causal = False

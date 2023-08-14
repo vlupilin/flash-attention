@@ -74,7 +74,7 @@ def test_op(Z, H, N_CTX, D_HEAD, dtype=torch.float16):
     assert torch.allclose(ref_dq, tri_dq, atol=1e-2, rtol=0)
 
 torch.manual_seed(0)
-repeats = 25
+repeats = 2
 
 dropout_p = 0.1
 causal = False

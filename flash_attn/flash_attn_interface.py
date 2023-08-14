@@ -112,7 +112,7 @@ def _fwd_kernel(
 
 @triton.jit
 def _bwd_preprocess(
-    Out, DO, L,
+    Out, DO,
     NewDO, Delta,
     BLOCK_M: tl.constexpr, D_HEAD: tl.constexpr,
 ):
@@ -121,9 +121,6 @@ def _bwd_preprocess(
     # load
     o = tl.load(Out + off_m[:, None] * D_HEAD + off_n[None, :]).to(tl.float32)
     do = tl.load(DO + off_m[:, None] * D_HEAD + off_n[None, :]).to(tl.float32)
-    denom = tl.load(L + off_m).to(tl.float32)
-    # compute
-    do = do / denom[:, None]
     delta = tl.sum(o * do, axis=1)
     # write-back
     tl.store(NewDO + off_m[:, None] * D_HEAD + off_n[None, :], do)
@@ -134,7 +131,7 @@ def _bwd_preprocess(
 def _bwd_kernel(
     Q, K, V, sm_scale, Out, DO,
     DQ, DK, DV,
-    L, M,
+    L,
     D,
     stride_qz, stride_qh, stride_qm, stride_qk,
     stride_kz, stride_kh, stride_kn, stride_kk,
@@ -172,7 +169,7 @@ def _bwd_kernel(
         dq_ptrs = DQ + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         # pointer to row-wise quantities in value-like data
         D_ptrs = D + off_hz * N_CTX
-        m_ptrs = M + off_hz * N_CTX
+        l_ptrs = L + off_hz * N_CTX
         # initialize dv amd dk
         dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
         dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
@@ -188,8 +185,8 @@ def _bwd_kernel(
             # NOTE: `do` is pre-divided by `l`; no normalization here
             qk = tl.dot(q, tl.trans(k))
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
-            m = tl.load(m_ptrs + offs_m_curr)
-            p = tl.math.exp2(qk * qk_scale - m[:, None])
+            l_i = tl.load(l_ptrs + offs_m_curr)
+            p = tl.math.exp2(qk * qk_scale - l_i[:, None])
             # compute dv
             do = tl.load(do_ptrs)
             dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
@@ -232,10 +229,7 @@ class _attention_triton(torch.autograd.Function):
         BLOCK_N = 64
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
-        # use kernel arguments to compute grid dims so we can do autotuning correctly.
-        def get_grid(**kwargs):
-            return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
-        grid = lambda META: get_grid(**META)
+        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
         _fwd_kernel[grid](
             q, k, v, sm_scale,
             L,
@@ -261,7 +255,7 @@ class _attention_triton(torch.autograd.Function):
     @staticmethod
     def backward(ctx, do):
         BLOCK = 64
-        q, k, v, o, l, m = ctx.saved_tensors
+        q, k, v, o, l = ctx.saved_tensors
         do = do.contiguous()
         dq = torch.zeros_like(q, dtype=torch.float32)
         dk = torch.empty_like(k)
@@ -274,7 +268,7 @@ class _attention_triton(torch.autograd.Function):
         # values and don't skip some blocks.
         block_scale = (q.shape[2] // ctx.grid[0]) // BLOCK
         _bwd_preprocess[(ctx.grid[0] * ctx.grid[1], )](
-            o, do, l,
+            o, do,
             do_scaled, delta,
             BLOCK_M=block_scale * BLOCK, D_HEAD=ctx.BLOCK_DMODEL,
         )
@@ -282,7 +276,7 @@ class _attention_triton(torch.autograd.Function):
             q, k, v, ctx.sm_scale,
             o, do_scaled,
             dq, dk, dv,
-            l, m,
+            l,
             delta,
             q.stride(0), q.stride(1), q.stride(2), q.stride(3),
             k.stride(0), k.stride(1), k.stride(2), k.stride(3),
