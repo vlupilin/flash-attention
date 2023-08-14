@@ -37,7 +37,7 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
 
 
 torch.manual_seed(0)
-repeats = 250
+repeats = 25
 
 dropout_p = 0.1
 causal = False
@@ -126,7 +126,7 @@ for bs in batch_size:
         qkv_triton = torch.stack([q, k, v], dim=2)
 
         ## Triton FA implementation
-        fn = lambda flash_triton:flash_attn_triton(q, k, v, causal, 1.3)
+        fn = lambda flash_triton:flash_attn_triton(q, k, v, causal, sm_scale)
         fa_time,fa_measurement = benchmark_forward(fn, qkv_triton, repeats=repeats, desc='FlashAttention triton', verbose=False)
 
         ## Measure time and compute tflops

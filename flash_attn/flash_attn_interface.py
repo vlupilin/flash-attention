@@ -64,8 +64,8 @@ def _fwd_kernel(
     k_ptrs = K + off_k
     v_ptrs = V + off_v
     # initialize pointer to m and l
-    m_prev = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
-    l_prev = tl.zeros([BLOCK_M], dtype=tl.float32)
+    m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
+    l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
     acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     # scale sm_scale by log_2(e) and use
     # 2^x instead of exp in the loop because CSE and LICM
@@ -73,6 +73,7 @@ def _fwd_kernel(
     qk_scale = sm_scale * 1.44269504
     # load q: it will stay in SRAM throughout
     q = tl.load(q_ptrs)
+    q = (q * qk_scale).to(tl.float16)
     # loop over k, v and update accumulator
     lo = 0
     hi = (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX
@@ -88,29 +89,19 @@ def _fwd_kernel(
         # -- compute scaling constant ---
         m_i_new = tl.maximum(m_i, tl.max(qk, 1))
         alpha = tl.math.exp2(m_i - m_i_new)
-        beta = tl.math.exp2(m_ij - m_i_new)
-        l_i *= alpha
-        l_i_new = l_i + beta * l_ij
-        # scale p
-        p_scale = beta / l_i_new
-        p = p * p_scale[:, None]
-        # scale acc
-        acc_scale = l_i / l_i_new
-        acc = acc * acc_scale[:, None]
-        # update acc
-        p = p.to(Q.dtype.element_ty)
-        v = tl.load(v_ptrs)
-        acc += tl.dot(p, v)
+        p = tl.math.exp2(qk - m_i_new[:, None])
+        # -- scale and update acc --
+        acc_scale = l_i * 0 + alpha  # workaround some compiler bug
+        acc *= acc_scale[:, None]
+        acc += tl.dot(p.to(tl.float16), v)
         # update m_i and l_i
-        l_prev = l_curr
-        m_prev = m_curr
+        l_i = l_i * alpha + tl.sum(p, 1)
+        m_i = m_i_new
         # update pointers
         k_ptrs += BLOCK_N * stride_kn
         v_ptrs += BLOCK_N * stride_vk
-    # rematerialize offsets to save registers
-    start_m = tl.program_id(0)
-    offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
-    # write back l and m
+    # write back l
+    acc = acc / l_i[:, None]
     l_ptrs = L + off_hz * N_CTX + offs_m
     tl.store(l_ptrs, m_i + tl.math.log2(l_i))
     # initialize pointers to output
@@ -118,7 +109,6 @@ def _fwd_kernel(
     off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
     out_ptrs = Out + off_o
     tl.store(out_ptrs, acc.to(tl.float16))
-
 
 @triton.jit
 def _bwd_preprocess(
@@ -239,15 +229,13 @@ class _attention_triton(torch.autograd.Function):
         assert Lk in {16, 32, 64, 128}
         o = torch.empty_like(q)
         BLOCK_M = 128
-        BLOCK_N = 32
-        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+        BLOCK_N = 64
         L = torch.empty((q.shape[0] * q.shape[1], q.shape[2]), device=q.device, dtype=torch.float32)
         num_warps = 4 if Lk <= 64 else 8
+        # use kernel arguments to compute grid dims so we can do autotuning correctly.
         def get_grid(**kwargs):
             return (triton.cdiv(q.shape[2], kwargs['BLOCK_M']), q.shape[0] * q.shape[1], 1)
-
-        # grid = [8, 64, 1]. In a triton jit'ed function, this translates to program_id(0,1)
-        grid = (triton.cdiv(q.shape[2], BLOCK_M), q.shape[0] * q.shape[1], 1)
+        grid = lambda META: get_grid(**META)
         _fwd_kernel[grid](
             q, k, v, sm_scale,
             L,
@@ -263,7 +251,6 @@ class _attention_triton(torch.autograd.Function):
             num_stages=1,
         )
         # print(h.asm["ttgir"])
-
         ctx.save_for_backward(q, k, v, o, L)
         ctx.grid = grid
         ctx.sm_scale = sm_scale
@@ -309,7 +296,7 @@ class _attention_triton(torch.autograd.Function):
         # print(h.asm["ttgir"])
         return dq, dk, dv, None, None
 
-def flash_attn_triton(q, k, v, causal, softmax_scale=None):
+def flash_attn_triton(q, k, v, causal, sm_scale=None):
     """dropout_p should be set to 0.0 during evaluation
     Arguments:
         qkv: (total, 3, nheads, headdim), where total = total number of tokens in the batch.
@@ -332,7 +319,7 @@ def flash_attn_triton(q, k, v, causal, softmax_scale=None):
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
-    return _attention_triton.apply(q, k, v, softmax_scale)
+    return _attention_triton.apply(q, k, v, causal, sm_scale)
 
 
 def _flash_attn_forward(q, k, v, out, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k,
