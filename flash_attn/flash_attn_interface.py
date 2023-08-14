@@ -257,21 +257,21 @@ def _bwd_kernel_dk_dv(
         dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
         dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
         # k and v stay in SRAM throughout
-        k = tl.load(k_ptrs)
+        k = tl.trans(tl.load(k_ptrs))
         v = tl.load(v_ptrs)
         # loop over rows
         for start_m in range(lo, num_block * BLOCK_M, BLOCK_M):
             offs_m_curr = start_m + offs_m
-            # load q, k, v, do on-chip
+            # load q, do on-chip
             q = tl.load(q_ptrs)
+            do = tl.load(do_ptrs)
             # recompute p = softmax(qk, dim=-1).T
             # NOTE: `do` is pre-divided by `l`; no normalization here
-            qk = tl.dot(q, tl.trans(k))
+            qk = tl.dot(q, k)
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             l_i = tl.load(l_ptrs + offs_m_curr)
             p = tl.math.exp2(qk * qk_scale - l_i[:, None])
             # compute dv
-            do = tl.load(do_ptrs)
             dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
             # compute dp = dot(v, do)
             Di = tl.load(D_ptrs + offs_m_curr)
@@ -332,11 +332,10 @@ def _bwd_kernel_dq(
         # pointer to row-wise quantities in value-like data
         D_ptrs = D + off_hz * N_CTX
         l_ptrs = L + off_hz * N_CTX
-        # initialize dv amd dk
-        dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
         # k and v stay in SRAM throughout
         k = tl.load(k_ptrs)
         v = tl.load(v_ptrs)
+        k_trans = tl.trans(tl.load(k_ptrs))
         # loop over rows
         for start_m in range(lo, num_block * BLOCK_M, BLOCK_M):
             offs_m_curr = start_m + offs_m
@@ -344,13 +343,12 @@ def _bwd_kernel_dq(
             q = tl.load(q_ptrs)
             # recompute p = softmax(qk, dim=-1).T
             # NOTE: `do` is pre-divided by `l`; no normalization here
-            qk = tl.dot(q, tl.trans(k))
+            qk = tl.dot(q, k_trans)
             qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
             l_i = tl.load(l_ptrs + offs_m_curr)
             p = tl.math.exp2(qk * qk_scale - l_i[:, None])
             # compute dv
             do = tl.load(do_ptrs)
-            dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
             # compute dp = dot(v, do)
             Di = tl.load(D_ptrs + offs_m_curr)
             dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
@@ -365,9 +363,6 @@ def _bwd_kernel_dq(
             dq_ptrs += BLOCK_M * stride_qm
             q_ptrs += BLOCK_M * stride_qm
             do_ptrs += BLOCK_M * stride_qm
-        # write-back
-        dv_ptrs = DV + (offs_n[:, None] * stride_qm + offs_k[None, :] * stride_qk)
-        tl.store(dv_ptrs, dv)
 
 empty = torch.empty(128, device="cuda")
 
