@@ -154,10 +154,15 @@ def _bwd_kernel(
     DV += off_z * stride_qz + off_h * stride_qh
     # See fwd pass above for explanation.
     qk_scale = sm_scale * 1.44269504
+    # start_n goes from 0 to 15
+    # In this loop, Q pointers go from 0 - 1023 in increments of 64 per iteration
     for start_n in range(0, num_block):
+        # lo goes from 0 to 1024 in steps of 64
         lo = start_n * BLOCK_M
         # initialize row/col offsets
+        # offs_qm goes from 0-63 or lo:lo+63
         offs_qm = lo + tl.arange(0, BLOCK_M)
+        # This goes from 0-63 or lo:lo+63
         offs_n = start_n * BLOCK_M + tl.arange(0, BLOCK_M)
         offs_m = tl.arange(0, BLOCK_N)
         offs_k = tl.arange(0, BLOCK_DMODEL)
@@ -177,6 +182,7 @@ def _bwd_kernel(
         k = tl.load(k_ptrs)
         v = tl.load(v_ptrs)
         # loop over rows
+        # This is looping over all remaining Q blocks, starting at some offset.
         for start_m in range(lo, num_block * BLOCK_M, BLOCK_M):
             offs_m_curr = start_m + offs_m
             # load q, k, v, do on-chip
@@ -215,12 +221,13 @@ def _bwd_kernel(
 @triton.jit
 def _bwd_kernel_dk_dv(
     Q, K, V, sm_scale, Out, DO,
-    DK, DV,
+    DK, DV, DS,
     L,
     D,
     stride_qz, stride_qh, stride_qm, stride_qk,
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vk, stride_vn,
+    stride_dsz, stride_dsh, stride_dsm, stride_dsn,
     Z, H, N_CTX,
     num_block,
     BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
@@ -236,6 +243,7 @@ def _bwd_kernel_dk_dv(
     DO += off_z * stride_qz + off_h * stride_qh
     DK += off_z * stride_qz + off_h * stride_qh
     DV += off_z * stride_qz + off_h * stride_qh
+    DS += off_z * stride_dsz + off_h * stride_dsh
     # See fwd pass above for explanation.
     qk_scale = sm_scale * 1.44269504
     for start_n in range(0, num_block):
@@ -250,6 +258,7 @@ def _bwd_kernel_dk_dv(
         k_ptrs = K + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
         v_ptrs = V + (offs_n[None, :] * stride_qm + offs_k[:, None] * stride_qk)
         do_ptrs = DO + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
+        ds_ptrs = DS + (offs_qm[None, :] * stride_qk + offs_m[:, None] * stride_qm)
         # pointer to row-wise quantities in value-like data
         D_ptrs = D + off_hz * N_CTX
         l_ptrs = L + off_hz * N_CTX
@@ -279,11 +288,14 @@ def _bwd_kernel_dk_dv(
             dp += tl.dot(do, v)
             # compute ds = p * (dp - delta[:, None])
             ds = p * dp * sm_scale
+            ds = ds.to(Q.dtype.element_ty)
+            tl.store(ds_ptrs, ds)
             # compute dk = dot(ds.T, q)
-            dk += tl.dot(tl.trans(ds.to(Q.dtype.element_ty)), q)
+            dk += tl.dot(tl.trans(ds), q)
             # increment pointers
             q_ptrs += BLOCK_M * stride_qm
             do_ptrs += BLOCK_M * stride_qm
+            ds_ptrs += BLOCK_M * N_CTX
         # write-back
         dv_ptrs = DV + (offs_n[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         dk_ptrs = DK + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
@@ -293,12 +305,13 @@ def _bwd_kernel_dk_dv(
 @triton.jit
 def _bwd_kernel_dq(
     Q, K, V, sm_scale, Out, DO,
-    DQ, DV,
+    DQ, DS,
     L,
     D,
     stride_qz, stride_qh, stride_qm, stride_qk,
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vk, stride_vn,
+    stride_dsz, stride_dsh, stride_dsm, stride_dsn,
     Z, H, N_CTX,
     num_block,
     BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
@@ -308,12 +321,8 @@ def _bwd_kernel_dq(
     off_z = off_hz // H
     off_h = off_hz % H
     # offset pointers for batch/head
-    Q += off_z * stride_qz + off_h * stride_qh
     K += off_z * stride_qz + off_h * stride_qh
-    V += off_z * stride_qz + off_h * stride_qh
-    DO += off_z * stride_qz + off_h * stride_qh
-    DQ += off_z * stride_qz + off_h * stride_qh
-    DV += off_z * stride_qz + off_h * stride_qh
+    DS += off_z * stride_dsz + off_h * stride_dsh
     # See fwd pass above for explanation.
     qk_scale = sm_scale * 1.44269504
     for start_n in range(0, num_block):
@@ -324,45 +333,21 @@ def _bwd_kernel_dq(
         offs_m = tl.arange(0, BLOCK_N)
         offs_k = tl.arange(0, BLOCK_DMODEL)
         # initialize pointers to value-like data
-        q_ptrs = Q + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         k_ptrs = K + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
-        v_ptrs = V + (offs_n[None, :] * stride_qm + offs_k[:, None] * stride_qk)
-        do_ptrs = DO + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
         dq_ptrs = DQ + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
-        # pointer to row-wise quantities in value-like data
-        D_ptrs = D + off_hz * N_CTX
-        l_ptrs = L + off_hz * N_CTX
+        ds_ptrs = DS + (offs_qm[None, :] * stride_qk + offs_m[:, None] * stride_qm)
         # k and v stay in SRAM throughout
         k = tl.load(k_ptrs)
-        v = tl.load(v_ptrs)
-        k_trans = tl.trans(tl.load(k_ptrs))
         # loop over rows
         for start_m in range(lo, num_block * BLOCK_M, BLOCK_M):
-            offs_m_curr = start_m + offs_m
-            # load q, k, v, do on-chip
-            q = tl.load(q_ptrs)
-            # recompute p = softmax(qk, dim=-1).T
-            # NOTE: `do` is pre-divided by `l`; no normalization here
-            qk = tl.dot(q, k_trans)
-            qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
-            l_i = tl.load(l_ptrs + offs_m_curr)
-            p = tl.math.exp2(qk * qk_scale - l_i[:, None])
-            # compute dv
-            do = tl.load(do_ptrs)
-            # compute dp = dot(v, do)
-            Di = tl.load(D_ptrs + offs_m_curr)
-            dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
-            dp += tl.dot(do, v)
-            # compute ds = p * (dp - delta[:, None])
-            ds = p * dp * sm_scale
+            ds = tl.load(ds_ptrs)
             # compute dq
             dq = tl.load(dq_ptrs)
-            dq += tl.dot(ds.to(Q.dtype.element_ty), k)
+            dq += tl.dot(ds, k)
             tl.store(dq_ptrs, dq)
             # increment pointers
             dq_ptrs += BLOCK_M * stride_qm
-            q_ptrs += BLOCK_M * stride_qm
-            do_ptrs += BLOCK_M * stride_qm
+            ds_ptrs += BLOCK_M * N_CTX
 
 empty = torch.empty(128, device="cuda")
 
@@ -441,15 +426,18 @@ class _attention_triton(torch.autograd.Function):
                 num_stages=1,
             )
         else :
+            # ds is GEMM result of q.k so has last 2 dims equal to seq len
+            ds = torch.zeros(q.shape[0], q.shape[1], q.shape[2], q.shape[2], device=q.device, dtype=torch.float16).contiguous()
             _bwd_kernel_dk_dv[(ctx.grid[1],)](
                 q, k, v, ctx.sm_scale,
                 o, do_scaled,
-                dk, dv,
+                dk, dv, ds,
                 l,
                 delta,
                 q.stride(0), q.stride(1), q.stride(2), q.stride(3),
                 k.stride(0), k.stride(1), k.stride(2), k.stride(3),
                 v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+                ds.stride(0), ds.stride(1), ds.stride(2), ds.stride(3),
                 q.shape[0], q.shape[1], q.shape[2],
                 block_scale * ctx.grid[0],
                 BLOCK_M=BLOCK, BLOCK_N=BLOCK,
@@ -459,12 +447,13 @@ class _attention_triton(torch.autograd.Function):
             _bwd_kernel_dq[(ctx.grid[1],)](
                 q, k, v, ctx.sm_scale,
                 o, do_scaled,
-                dq, dv,
+                dq, ds,
                 l,
                 delta,
                 q.stride(0), q.stride(1), q.stride(2), q.stride(3),
                 k.stride(0), k.stride(1), k.stride(2), k.stride(3),
                 v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+                ds.stride(0), ds.stride(1), ds.stride(2), ds.stride(3),
                 q.shape[0], q.shape[1], q.shape[2],
                 block_scale * ctx.grid[0],
                 BLOCK_M=BLOCK, BLOCK_N=BLOCK,
