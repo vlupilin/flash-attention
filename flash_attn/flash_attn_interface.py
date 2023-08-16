@@ -222,73 +222,67 @@ def _bwd_kernel_dk_dv(
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vk, stride_vn,
     Z, H, N_CTX,
-    num_block,
     BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
     BLOCK_N: tl.constexpr,
 ):
-    off_hz = tl.program_id(0)
-    off_z = off_hz // H
-    off_h = off_hz % H
-    # offset pointers for batch/head
-    Q += off_z * stride_qz + off_h * stride_qh
-    K += off_z * stride_qz + off_h * stride_qh
-    V += off_z * stride_qz + off_h * stride_qh
-    DO += off_z * stride_qz + off_h * stride_qh
-    DK += off_z * stride_qz + off_h * stride_qh
-    DV += off_z * stride_qz + off_h * stride_qh
-    # See fwd pass above for explanation.
+    start_m = tl.program_id(0)
+    off_hz = tl.program_id(1)
+    qvk_offset = off_hz * stride_qh
+    # initialize offsets
+    offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
+    offs_n = tl.arange(0, BLOCK_N)
+    offs_d = tl.arange(0, BLOCK_DMODEL)
+    off_q = qvk_offset + start_m * BLOCK_M * stride_qm + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    off_k = qvk_offset + offs_m[None, :] * stride_kn + offs_d[:, None] * stride_kk
+    off_v = qvk_offset + offs_m[None, :] * stride_vk + offs_d[:, None] * stride_vn
+    off_do = qvk_offset + start_m * BLOCK_M * stride_qm +  offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    # Initialize pointers to Q, K, V
+    q_ptrs = Q + off_q
+    k_ptrs = K + off_k
+    v_ptrs = V + off_v
+    do_ptrs = DO + off_do
+    # pointer to row-wise quantities in value-like data
+    D_ptrs = D + off_hz * N_CTX
+    l_ptrs = L + off_hz * N_CTX
     qk_scale = sm_scale * 1.44269504
-    for start_n in range(0, num_block):
-        lo = start_n * BLOCK_M
-        # initialize row/col offsets
-        offs_qm = lo + tl.arange(0, BLOCK_M)
-        offs_n = start_n * BLOCK_M + tl.arange(0, BLOCK_M)
-        offs_m = tl.arange(0, BLOCK_N)
-        offs_k = tl.arange(0, BLOCK_DMODEL)
-        # initialize pointers to value-like data
-        q_ptrs = Q + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
-        k_ptrs = K + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
-        v_ptrs = V + (offs_n[None, :] * stride_qm + offs_k[:, None] * stride_qk)
-        do_ptrs = DO + (offs_qm[:, None] * stride_qm + offs_k[None, :] * stride_qk)
-        # pointer to row-wise quantities in value-like data
-        D_ptrs = D + off_hz * N_CTX
-        l_ptrs = L + off_hz * N_CTX
-        # initialize dv amd dk
-        dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
-        dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
-        # k and v stay in SRAM throughout
-        k = tl.trans(tl.load(k_ptrs))
-        v = tl.load(v_ptrs)
-        # loop over rows
-        for start_m in range(lo, num_block * BLOCK_M, BLOCK_M):
-            offs_m_curr = start_m + offs_m
-            # load q, do on-chip
-            q = tl.load(q_ptrs)
-            do = tl.load(do_ptrs)
-            # recompute p = softmax(qk, dim=-1).T
-            # NOTE: `do` is pre-divided by `l`; no normalization here
-            qk = tl.dot(q, k)
-            qk = tl.where(offs_m_curr[:, None] >= (offs_n[None, :]), qk, float("-inf"))
-            l_i = tl.load(l_ptrs + offs_m_curr)
-            p = tl.math.exp2(qk * qk_scale - l_i[:, None])
-            # compute dv
-            dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
-            # compute dp = dot(v, do)
-            Di = tl.load(D_ptrs + offs_m_curr)
-            dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
-            dp += tl.dot(do, v)
-            # compute ds = p * (dp - delta[:, None])
-            ds = p * dp * sm_scale
-            # compute dk = dot(ds.T, q)
-            dk += tl.dot(tl.trans(ds.to(Q.dtype.element_ty)), q)
-            # increment pointers
-            q_ptrs += BLOCK_M * stride_qm
-            do_ptrs += BLOCK_M * stride_qm
-        # write-back
-        dv_ptrs = DV + (offs_n[:, None] * stride_qm + offs_k[None, :] * stride_qk)
-        dk_ptrs = DK + (offs_n[:, None] * stride_kn + offs_k[None, :] * stride_kk)
-        tl.store(dv_ptrs, dv)
-        tl.store(dk_ptrs, dk)
+    # load k and v: they will stay in SRAM throughout
+    k = tl.load(k_ptrs)
+    k = (k * qk_scale).to(tl.float16)
+    v = tl.load(v_ptrs)
+    dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
+    dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
+    lo = start_m * BLOCK_M
+    hi = N_CTX
+    # loop over q, do 
+    for start_n in range(lo, hi, BLOCK_N):
+        offs_m_curr = offs_n[:, None] + start_n
+        # -- load k, v --
+        q = tl.load(q_ptrs)
+        do = tl.load(do_ptrs)
+        # -- compute qk ----
+        qk = tl.dot(q, k)
+        qk = tl.where(offs_m_curr >= offs_m[None, :], qk, float("-inf"))
+        l_i = tl.load(l_ptrs + offs_m_curr)
+        p = tl.math.exp2(qk - l_i)
+        dv += tl.dot(p.to(Q.dtype.element_ty), do)
+        # compute dp = dot(v, do)
+        Di = tl.load(D_ptrs + offs_m_curr)
+        dp = tl.zeros([BLOCK_N, BLOCK_M], dtype=tl.float32) - Di
+        dp += tl.dot(do, v)
+        # compute ds = p * (dp - delta[:, None])
+        ds = p * dp * sm_scale
+        # compute dk
+        dk += tl.dot(ds.to(Q.dtype.element_ty), q)
+        # update pointers
+        q_ptrs += BLOCK_N * stride_qm
+        do_ptrs += BLOCK_N * stride_qm
+    # initialize pointers to output
+    off_dk = off_hz * stride_kh + offs_m[:, None] * stride_kn + offs_n[None, :] * stride_kk
+    off_dv = off_hz * stride_vh + offs_m[:, None] * stride_vk + offs_n[None, :] * stride_vn
+    dk_ptrs = DK + off_dk
+    dv_ptrs = DV + off_dv
+    tl.store(dk_ptrs, dk.to(tl.float16))
+    tl.store(dv_ptrs, dv.to(tl.float16))
 
 @triton.jit
 def _bwd_kernel_dq(
@@ -433,7 +427,7 @@ class _attention_triton(torch.autograd.Function):
                 num_stages=1,
             )
         else :
-            _bwd_kernel_dk_dv[(ctx.grid[1],)](
+            _bwd_kernel_dk_dv[(2*ctx.grid[0], ctx.grid[1])](
                 q, k, v, ctx.sm_scale,
                 o, do_scaled,
                 dk, dv,
@@ -443,12 +437,11 @@ class _attention_triton(torch.autograd.Function):
                 k.stride(0), k.stride(1), k.stride(2), k.stride(3),
                 v.stride(0), v.stride(1), v.stride(2), v.stride(3),
                 q.shape[0], q.shape[1], q.shape[2],
-                block_scale * ctx.grid[0],
-                BLOCK_M=BLOCK, BLOCK_N=BLOCK,
+                BLOCK_M=64, BLOCK_N=64,
                 BLOCK_DMODEL=ctx.BLOCK_DMODEL, num_warps=4,
                 num_stages=1,
             )
-            _bwd_kernel_dq[(ctx.grid)](
+            _bwd_kernel_dq[ctx.grid](
                 q, k, v, ctx.sm_scale,
                 o, do_scaled,
                 dq,
