@@ -321,6 +321,9 @@ def _bwd_kernel_dq(
     q = tl.load(q_ptrs)
     q = (q * qk_scale).to(tl.float16)
     do = tl.load(do_ptrs)
+    do = (do * sm_scale).to(tl.float16)
+    Di = tl.load(D_ptrs + offs_m) * sm_scale
+    l_i = tl.load(l_ptrs + offs_m)
     dq = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     # loop over k, v 
     lo = 0
@@ -332,14 +335,12 @@ def _bwd_kernel_dq(
         # -- compute qk ----
         qk = tl.dot(q, k)
         qk = tl.where(offs_m[:, None] >= (offs_n[None, :] + start_n), qk, float("-inf"))
-        l_i = tl.load(l_ptrs + offs_m)
         p = tl.math.exp2(qk * qk_scale - l_i[:, None])
         # compute dp = dot(v, do)
-        Di = tl.load(D_ptrs + offs_m)
         dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
         dp += tl.dot(do, v)
         # compute ds = p * (dp - delta[:, None])
-        ds = p * dp * sm_scale
+        ds = p * dp
         # compute dq
         dq += tl.dot(ds.to(Q.dtype.element_ty), k)
         # update pointers
