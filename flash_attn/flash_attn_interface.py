@@ -264,7 +264,7 @@ def _bwd_kernel_dk_dv(
         qk = tl.where(offs_m_curr >= offs_m[None, :], qk, float("-inf"))
         l_i = tl.load(l_ptrs + offs_m_curr)
         p = tl.math.exp2(qk - l_i)
-        dv += tl.dot(p.to(Q.dtype.element_ty), do)
+        dv += tl.dot(tl.trans(p.to(Q.dtype.element_ty)), do)
         # compute dp = dot(v, do)
         Di = tl.load(D_ptrs + offs_m_curr)
         dp = tl.zeros([BLOCK_N, BLOCK_M], dtype=tl.float32) - Di
@@ -272,7 +272,7 @@ def _bwd_kernel_dk_dv(
         # compute ds = p * (dp - delta[:, None])
         ds = p * dp * sm_scale
         # compute dk
-        dk += tl.dot(ds.to(Q.dtype.element_ty), q)
+        dk += tl.dot(tl.trans(ds.to(Q.dtype.element_ty)), q)
         # update pointers
         q_ptrs += BLOCK_N * stride_qm
         do_ptrs += BLOCK_N * stride_qm
