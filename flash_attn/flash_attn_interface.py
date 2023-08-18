@@ -319,7 +319,7 @@ def _bwd_kernel_dq(
     qk_scale = sm_scale * 1.44269504
     # load q and do: they will stay in SRAM throughout
     q = tl.load(q_ptrs)
-    q = (q * qk_scale).to(tl.float16)
+    q = (q * sm_scale).to(tl.float16)
     do = tl.load(do_ptrs)
     do = (do * sm_scale).to(tl.float16)
     Di = tl.load(D_ptrs + offs_m) * sm_scale
@@ -335,7 +335,7 @@ def _bwd_kernel_dq(
         # -- compute qk ----
         qk = tl.dot(q, k)
         qk = tl.where(offs_m[:, None] >= (offs_n[None, :] + start_n), qk, float("-inf"))
-        p = tl.math.exp2(qk * qk_scale - l_i[:, None])
+        p = tl.math.exp2(qk - l_i[:, None])
         # compute dp = dot(v, do)
         dp = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32) - Di[:, None]
         dp += tl.dot(do, v)
