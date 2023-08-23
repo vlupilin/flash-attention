@@ -270,7 +270,7 @@ def _bwd_kernel_dk_dv(
         dp = tl.zeros([BLOCK_N, BLOCK_M], dtype=tl.float32) - Di
         dp += tl.dot(do, v)
         # compute ds = p * (dp - delta[:, None])
-        ds = p * dp * sm_scale
+        ds = p * dp
         # compute dk
         dk += tl.dot(tl.trans(ds.to(Q.dtype.element_ty)), q)
         # update pointers
@@ -281,7 +281,7 @@ def _bwd_kernel_dk_dv(
     off_dv = off_hz * stride_vh + offs_m[:, None] * stride_vk + offs_n[None, :] * stride_vn
     dk_ptrs = DK + off_dk
     dv_ptrs = DV + off_dv
-    tl.store(dk_ptrs, dk.to(tl.float16))
+    tl.store(dk_ptrs, (dk * sm_scale).to(tl.float16))
     tl.store(dv_ptrs, dv.to(tl.float16))
 
 @triton.jit
@@ -319,10 +319,9 @@ def _bwd_kernel_dq(
     qk_scale = sm_scale * 1.44269504
     # load q and do: they will stay in SRAM throughout
     q = tl.load(q_ptrs)
-    q = (q * sm_scale).to(tl.float16)
+    q = (q * qk_scale).to(tl.float16)
     do = tl.load(do_ptrs)
-    do = (do * sm_scale).to(tl.float16)
-    Di = tl.load(D_ptrs + offs_m) * sm_scale
+    Di = tl.load(D_ptrs + offs_m)
     l_i = tl.load(l_ptrs + offs_m)
     dq = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     # loop over k, v 
@@ -342,14 +341,14 @@ def _bwd_kernel_dq(
         # compute ds = p * (dp - delta[:, None])
         ds = p * dp
         # compute dq
-        dq += tl.dot(ds.to(Q.dtype.element_ty), k)
+        dq += tl.dot(ds.to(Q.dtype.element_ty), tl.trans(k))
         # update pointers
         k_ptrs += BLOCK_N * stride_kn
         v_ptrs += BLOCK_N * stride_vk
     # initialize pointers to output
     off_dq = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_n[None, :] * stride_qk
     dq_ptrs = DQ + off_dq
-    tl.store(dq_ptrs, dq.to(tl.float16))
+    tl.store(dq_ptrs, (dq * sm_scale).to(tl.float16))
 
 empty = torch.empty(128, device="cuda")
 
@@ -428,7 +427,7 @@ class _attention_triton(torch.autograd.Function):
                 num_stages=1,
             )
         else :
-            _bwd_kernel_dk_dv[(2*ctx.grid[0], ctx.grid[1])](
+            _bwd_kernel_dk_dv[(block_scale * ctx.grid[0], ctx.grid[1])](
                 q, k, v, ctx.sm_scale,
                 o, do_scaled,
                 dk, dv,

@@ -69,7 +69,7 @@ def test_op(Z, H, N_CTX, D_HEAD, dtype=torch.float16):
     else:
         assert torch.allclose(ref_dv, tri_dv, atol=0.5, rtol=0)
     assert torch.allclose(ref_dk, tri_dk, atol=1e-2, rtol=0)
-    assert torch.allclose(ref_dq, tri_dq, atol=5e-2, rtol=0)
+    assert torch.allclose(ref_dq, tri_dq, atol=1e-2, rtol=0)
 
 
 torch.manual_seed(0)
@@ -114,9 +114,9 @@ for bs in batch_size:
         triton_tflops = total_flops / triton_time * 1e-12
         print(f'{bs:3d}  {sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
 
-## table 2
+# table 2
 print(f'fwd-nheads16-d64-causal={causal}')
-batch_size = [4,32,48,64,128]
+batch_size = [1,32,48,64,128]
 nheads = 16
 seqlen = [1024,2048,4096]
 n = 1024
