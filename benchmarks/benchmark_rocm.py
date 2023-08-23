@@ -66,7 +66,7 @@ item_lists=[
 i=1
 for dtype in [torch.float16, torch.bfloat16]:
     for batch_size, n, nheads, seqlen in item_lists:
-        for causal in [True]:
+        for causal in [True, False]:
             for dropout_p in [0]:
                 torch.manual_seed(0)
                 repeats = 30
@@ -93,7 +93,7 @@ for dtype in [torch.float16, torch.bfloat16]:
                     q, k, v, cu_seqlens, cu_seqlens, max_seqlen_in_batch, max_seqlen_in_batch, dropout_p, causal=causal
                 )
                 t,m1 = benchmark_forward(fn, q, k, v, repeats=repeats, desc='FlashAttention')
-                t,m2 = benchmark_backward(fn, q, k, v, repeats=repeats, desc='FlashAttention')
+                #t,m2 = benchmark_backward(fn, q, k, v, repeats=repeats, desc='FlashAttention')
                 # fn = lambda q, k, v: attention_ref(q, k, v, attention_mask_bool, dropout_p, causal=causal)
                 # try:
                 #     t,m3 = benchmark_forward(fn, qkv, repeats=repeats, desc='PyTorch Standard Attention')
@@ -103,7 +103,7 @@ for dtype in [torch.float16, torch.bfloat16]:
                 #         worksheet.write(i, j, label = str(value))
                 #     i += 1
                 #     continue
-                for j, (label, value) in enumerate(zip(labels, [dtype, batch_size, n, nheads, d, seqlen, causal, dropout_p, format(m1.mean*1000, ".2f"), format(m2.mean*1000, ".2f"), 'None', 'None'])):
+                for j, (label, value) in enumerate(zip(labels, [dtype, batch_size, n, nheads, d, seqlen, causal, dropout_p, format(m1.mean*1000, ".2f"), 'None', 'None', 'None'])):
                     worksheet.write(i, j, label = str(value))
                 i += 1
                 #exit(0)
