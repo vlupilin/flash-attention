@@ -72,7 +72,7 @@ def test_op(Z, H, N_CTX, D_HEAD, causal, sm_scale, dtype=torch.float16):
 
 
 torch.manual_seed(0)
-repeats = 250
+repeats = 1
 
 dropout_p = 0.1
 causal = False

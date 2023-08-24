@@ -226,8 +226,8 @@ class _attention_triton(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, q, k, v, causal, sm_scale):
-        BLOCK_M = 128
-        BLOCK_N = 64
+        BLOCK_M = 32
+        BLOCK_N = 32
         # shape constraints
         Lq, Lk, Lv = q.shape[-1], k.shape[-1], v.shape[-1]
         assert Lq == Lk and Lk == Lv
