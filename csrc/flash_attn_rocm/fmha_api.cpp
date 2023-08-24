@@ -114,6 +114,22 @@ void set_params_fprop(FlashFwdParams &params,
     char* lse_ptr = reinterpret_cast<char*>(softmax_lse_d);
     char* s_ptr = reinterpret_cast<char*>(s_d);
 
+    if(q.is_contiguous() && k.is_contiguous() && v.is_contiguous()){  
+        params.q_stride_multiplier = 1;
+        params.kv_stride_multiplier = 1;
+    }
+    else if(q.is_contiguous() && !k.is_contiguous() && !v.is_contiguous()){
+        params.q_stride_multiplier = 1;
+        params.kv_stride_multiplier = 2;
+    }
+    else if(!q.is_contiguous() && !k.is_contiguous() && !v.is_contiguous()){
+        params.q_stride_multiplier = 3;
+        params.kv_stride_multiplier = 3;
+    }
+    else{
+        std::cout<< "Wrong matrix inputs." <<std::endl;
+    }
+
     for (int i = 0; i < b; i++){
         int temp_seqlen_q = params.host_seqlens_q[i+1] - params.host_seqlens_q[i];
         int temp_q_stride = get_size_in_bytes(d * h * temp_seqlen_q, data_type);
@@ -135,32 +151,15 @@ void set_params_fprop(FlashFwdParams &params,
             params.is_mnko_padding = ((temp_seqlen_q % 128)==0 && (temp_seqlen_k % 128)==0 ? false : true);
         }
 
-        if(q.is_contiguous()){
-            params.q_ptr.push_back(reinterpret_cast<void*>(q_ptr));
-            q_ptr = q_ptr + temp_q_stride;
-        }else{
-            auto q_each_tmp = q.index({torch::indexing::Slice(params.host_seqlens_q[i], params.host_seqlens_q[i+1])}).contiguous();
-            params.q_tensors.push_back(q_each_tmp);
-            params.q_ptr.push_back(reinterpret_cast<void*>(q_each_tmp.data_ptr()));          
-        }
-        if(k.is_contiguous()){
-            params.k_ptr.push_back(reinterpret_cast<void*>(k_ptr));
-            k_ptr = k_ptr + temp_k_stride;
-        }else{
-            auto k_each_tmp = k.index({torch::indexing::Slice(params.host_seqlens_k[i], params.host_seqlens_k[i+1])}).contiguous();
-            params.k_tensors.push_back(k_each_tmp);
-            params.k_ptr.push_back(reinterpret_cast<void*>(k_each_tmp.data_ptr()));
-        }
+        params.q_ptr.push_back(reinterpret_cast<void*>(q_ptr));
+        q_ptr = q_ptr + temp_q_stride * params.q_stride_multiplier;
 
-        if(v.is_contiguous()){
-            params.v_ptr.push_back(reinterpret_cast<void*>(v_ptr));     
-            v_ptr = v_ptr + temp_k_stride;
-        }else{
-            auto v_each_tmp = v.index({torch::indexing::Slice(params.host_seqlens_k[i], params.host_seqlens_k[i+1])}).contiguous();
-            params.v_tensors.push_back(v_each_tmp);
-            params.v_ptr.push_back(reinterpret_cast<void*>(v_each_tmp.data_ptr()));
-        }
-        
+        params.k_ptr.push_back(reinterpret_cast<void*>(k_ptr));
+        k_ptr = k_ptr + temp_k_stride * params.kv_stride_multiplier;
+
+        params.v_ptr.push_back(reinterpret_cast<void*>(v_ptr));     
+        v_ptr = v_ptr + temp_k_stride * params.kv_stride_multiplier;
+
         params.o_ptr.push_back(reinterpret_cast<void*>(out_ptr));
         out_ptr = out_ptr + temp_q_stride;
 
