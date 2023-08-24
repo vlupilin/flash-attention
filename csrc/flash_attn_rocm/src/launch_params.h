@@ -165,6 +165,9 @@ struct FlashBwdParams : public FlashFwdParams {
   std::vector<int> host_seqlens_q;
   std::vector<int> host_seqlens_k;
 
+  int q_stride_multiplier;
+  int kv_stride_multiplier;
+
   int num_splits; // How many SMs per attention matrix.
 };
 
