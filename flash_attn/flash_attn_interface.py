@@ -35,6 +35,7 @@ def _get_block_size(device, head_dim, is_dropout):
 #    key = ['N_CTX'],
 #)
 
+
 @triton.jit
 def _fwd_kernel(
     Q, K, V, sm_scale,
@@ -44,25 +45,42 @@ def _fwd_kernel(
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vk, stride_vn,
     stride_oz, stride_oh, stride_om, stride_on,
-    Z, H, N_CTX,
+    Z, H, N_CTX, P_SEQ,
     BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
     BLOCK_N: tl.constexpr,
-    IS_CAUSAL: tl.constexpr
+    IS_CAUSAL: tl.constexpr,
 ):
     start_m = tl.program_id(0)
     off_hz = tl.program_id(1)
-    qvk_offset = off_hz * stride_qh
+    q_offset = off_hz * stride_qh
+    kv_offset = off_hz * stride_kh
+    Q_block_ptr = tl.make_block_ptr(
+        base=Q + q_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_qm, stride_qk),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    K_block_ptr = tl.make_block_ptr(
+        base=K + kv_offset,
+        shape=(BLOCK_DMODEL, N_CTX + P_SEQ),
+        strides=(stride_kk, stride_kn),
+        offsets=(0, 0),
+        block_shape=(BLOCK_DMODEL, BLOCK_N),
+        order=(0, 1)
+    )
+    V_block_ptr = tl.make_block_ptr(
+        base=V + kv_offset,
+        shape=(N_CTX + P_SEQ, BLOCK_DMODEL),
+        strides=(stride_vk, stride_vn),
+        offsets=(0, 0),
+        block_shape=(BLOCK_N, BLOCK_DMODEL),
+        order=(1, 0)
+    )
     # initialize offsets
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
-    offs_d = tl.arange(0, BLOCK_DMODEL)
-    off_q = qvk_offset + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
-    off_k = qvk_offset + offs_n[None, :] * stride_kn + offs_d[:, None] * stride_kk
-    off_v = qvk_offset + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
-    # Initialize pointers to Q, K, V
-    q_ptrs = Q + off_q
-    k_ptrs = K + off_k
-    v_ptrs = V + off_v
     # initialize pointer to m and l
     m_i = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
     l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
@@ -72,19 +90,19 @@ def _fwd_kernel(
     # don't work as expected with `exp` in the loop
     qk_scale = sm_scale * 1.44269504
     # load q: it will stay in SRAM throughout
-    q = tl.load(q_ptrs)
+    q = tl.load(Q_block_ptr)
     q = (q * qk_scale).to(tl.float16)
     # loop over k, v and update accumulator
     lo = 0
-    hi = (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX
+    hi = P_SEQ + (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX + P_SEQ
     for start_n in range(lo, hi, BLOCK_N):
         # -- load k, v --
-        k = tl.load(k_ptrs)
-        v = tl.load(v_ptrs)
-        # -- compute qk ----
+        k = tl.load(K_block_ptr)
+        v = tl.load(V_block_ptr)
+        # -- compute qk ---
         qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
         if IS_CAUSAL:
-            qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
+            qk = tl.where(P_SEQ + offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
         qk += tl.dot(q, k)
         # -- compute scaling constant ---
         m_i_new = tl.maximum(m_i, tl.max(qk, 1))
@@ -94,21 +112,26 @@ def _fwd_kernel(
         acc_scale = l_i * 0 + alpha  # workaround some compiler bug
         acc *= acc_scale[:, None]
         acc += tl.dot(p.to(tl.float16), v)
-        # update m_i and l_i
+        # -- update m_i and l_i --
         l_i = l_i * alpha + tl.sum(p, 1)
         m_i = m_i_new
         # update pointers
-        k_ptrs += BLOCK_N * stride_kn
-        v_ptrs += BLOCK_N * stride_vk
-    # write back l
+        K_block_ptr = tl.advance(K_block_ptr, (0, BLOCK_N))
+        V_block_ptr = tl.advance(V_block_ptr, (BLOCK_N, 0))
+    # write back l and m
     acc = acc / l_i[:, None]
     l_ptrs = L + off_hz * N_CTX + offs_m
     tl.store(l_ptrs, m_i + tl.math.log2(l_i))
-    # initialize pointers to output
-    offs_n = tl.arange(0, BLOCK_DMODEL)
-    off_o = off_hz * stride_oh + offs_m[:, None] * stride_om + offs_n[None, :] * stride_on
-    out_ptrs = Out + off_o
-    tl.store(out_ptrs, acc.to(tl.float16))
+    # write back O
+    O_block_ptr = tl.make_block_ptr(
+        base=Out + q_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_om, stride_on),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    tl.store(O_block_ptr, acc.to(tl.float16))
 
 @triton.jit
 def _bwd_preprocess(
@@ -228,27 +251,60 @@ def _bwd_kernel_dk_dv(
     start_m = tl.program_id(0)
     off_hz = tl.program_id(1)
     qvk_offset = off_hz * stride_qh
+    qdo_offset = qvk_offset + start_m * BLOCK_M * stride_qm
     # initialize offsets
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
     offs_d = tl.arange(0, BLOCK_DMODEL)
-    off_q = qvk_offset + start_m * BLOCK_M * stride_qm + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
-    off_k = qvk_offset + offs_m[None, :] * stride_kn + offs_d[:, None] * stride_kk
-    off_v = qvk_offset + offs_m[None, :] * stride_vk + offs_d[:, None] * stride_vn
-    off_do = qvk_offset + start_m * BLOCK_M * stride_qm +  offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    Q_block_ptr = tl.make_block_ptr(
+        base=Q + qdo_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_qm, stride_qk),
+        offsets=(0, 0),
+        block_shape=(BLOCK_N, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    K_block_ptr = tl.make_block_ptr(
+        base=K + qvk_offset,
+        shape=(BLOCK_DMODEL, N_CTX),
+        strides=(stride_kk, stride_kn),
+        offsets=(0, start_m * BLOCK_M),
+        block_shape=(BLOCK_DMODEL, BLOCK_N),
+        order=(0, 1)
+    )
+    V_block_ptr = tl.make_block_ptr(
+        base=V + qvk_offset,
+        shape=(BLOCK_DMODEL, N_CTX),
+        strides=(stride_vn, stride_vk),
+        offsets=(0, start_m * BLOCK_M),
+        block_shape=(BLOCK_DMODEL, BLOCK_N),
+        order=(0, 1)
+    )
+    DO_block_ptr = tl.make_block_ptr(
+        base=DO + qdo_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_qm, stride_qk),
+        offsets=(0, 0),
+        block_shape=(BLOCK_N, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    #off_q = qvk_offset + start_m * BLOCK_M * stride_qm + offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    #off_k = qvk_offset + offs_m[None, :] * stride_kn + offs_d[:, None] * stride_kk
+    #off_v = qvk_offset + offs_m[None, :] * stride_vk + offs_d[:, None] * stride_vn
+    #off_do = qvk_offset + start_m * BLOCK_M * stride_qm +  offs_n[:, None] * stride_qm + offs_d[None, :] * stride_qk
     # Initialize pointers to Q, K, V
-    q_ptrs = Q + off_q
-    k_ptrs = K + off_k
-    v_ptrs = V + off_v
-    do_ptrs = DO + off_do
+    #q_ptrs = Q + off_q
+    #k_ptrs = K + off_k
+    #v_ptrs = V + off_v
+    #do_ptrs = DO + off_do
     # pointer to row-wise quantities in value-like data
     D_ptrs = D + off_hz * N_CTX
     l_ptrs = L + off_hz * N_CTX
     qk_scale = sm_scale * 1.44269504
     # load k and v: they will stay in SRAM throughout
-    k = tl.load(k_ptrs)
+    k = tl.load(K_block_ptr)
     k = (k * qk_scale).to(tl.float16)
-    v = tl.load(v_ptrs)
+    v = tl.load(V_block_ptr)
     dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     lo = start_m * BLOCK_M
@@ -257,8 +313,8 @@ def _bwd_kernel_dk_dv(
     for start_n in range(lo, hi, BLOCK_N):
         offs_m_curr = offs_n[:, None] + start_n
         # -- load k, v --
-        q = tl.load(q_ptrs)
-        do = tl.load(do_ptrs)
+        q = tl.load(Q_block_ptr)
+        do = tl.load(DO_block_ptr)
         # -- compute qk ----
         qk = tl.dot(q, k)
         qk = tl.where(offs_m_curr >= offs_m[None, :], qk, float("-inf"))
@@ -274,15 +330,33 @@ def _bwd_kernel_dk_dv(
         # compute dk
         dk += tl.dot(tl.trans(ds.to(Q.dtype.element_ty)), q)
         # update pointers
-        q_ptrs += BLOCK_N * stride_qm
-        do_ptrs += BLOCK_N * stride_qm
+        Q_block_ptr = tl.advance(Q_block_ptr, (BLOCK_N, 0))
+        DO_block_ptr = tl.advance(DO_block_ptr, (BLOCK_N, 0))
+        #q_ptrs += BLOCK_N * stride_qm
+        #do_ptrs += BLOCK_N * stride_qm
     # initialize pointers to output
-    off_dk = off_hz * stride_kh + offs_m[:, None] * stride_kn + offs_n[None, :] * stride_kk
-    off_dv = off_hz * stride_vh + offs_m[:, None] * stride_vk + offs_n[None, :] * stride_vn
-    dk_ptrs = DK + off_dk
-    dv_ptrs = DV + off_dv
-    tl.store(dk_ptrs, (dk * sm_scale).to(tl.float16))
-    tl.store(dv_ptrs, dv.to(tl.float16))
+    DK_block_ptr = tl.make_block_ptr(
+        base=DK + qvk_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_kn, stride_kk),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    DV_block_ptr = tl.make_block_ptr(
+        base=DV + qvk_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_vk, stride_vn),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    #off_dk = off_hz * stride_kh + offs_m[:, None] * stride_kn + offs_n[None, :] * stride_kk
+    #off_dv = off_hz * stride_vh + offs_m[:, None] * stride_vk + offs_n[None, :] * stride_vn
+    #dk_ptrs = DK + off_dk
+    #dv_ptrs = DV + off_dv
+    tl.store(DK_block_ptr, (dk * sm_scale).to(tl.float16))
+    tl.store(DV_block_ptr, dv.to(tl.float16))
 
 @triton.jit
 def _bwd_kernel_dq(
@@ -304,23 +378,55 @@ def _bwd_kernel_dq(
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
     offs_d = tl.arange(0, BLOCK_DMODEL)
-    off_q = qvk_offset + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
-    off_k = qvk_offset + offs_n[None, :] * stride_kn + offs_d[:, None] * stride_kk
-    off_v = qvk_offset + offs_n[None, :] * stride_vk + offs_d[:, None] * stride_vn
-    off_do = qvk_offset + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    Q_block_ptr = tl.make_block_ptr(
+        base=Q + qvk_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_qm, stride_qk),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    K_block_ptr = tl.make_block_ptr(
+        base=K + qvk_offset,
+        shape=(BLOCK_DMODEL, N_CTX),
+        strides=(stride_kk, stride_kn),
+        offsets=(0, 0),
+        block_shape=(BLOCK_DMODEL, BLOCK_N),
+        order=(0, 1)
+    )
+    V_block_ptr = tl.make_block_ptr(
+        base=V + qvk_offset,
+        shape=(BLOCK_DMODEL, N_CTX),
+        strides=(stride_vn, stride_vk),
+        offsets=(0, 0),
+        block_shape=(BLOCK_DMODEL, BLOCK_N),
+        order=(0, 1)
+    )
+    DO_block_ptr = tl.make_block_ptr(
+        base=DO + qvk_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_qm, stride_qk),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    #off_q = qvk_offset + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
+    #off_k = qvk_offset + offs_n[None, :] * stride_kn + offs_d[:, None] * stride_kk
+    #off_v = qvk_offset + offs_n[None, :] * stride_vk + offs_d[:, None] * stride_vn
+    #off_do = qvk_offset + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
     # Initialize pointers to Q, K, V
-    q_ptrs = Q + off_q
-    k_ptrs = K + off_k
-    v_ptrs = V + off_v
-    do_ptrs = DO + off_do
+    #q_ptrs = Q + off_q
+    #k_ptrs = K + off_k
+    #v_ptrs = V + off_v
+    #do_ptrs = DO + off_do
     # pointer to row-wise quantities in value-like data
     D_ptrs = D + off_hz * N_CTX
     l_ptrs = L + off_hz * N_CTX
     qk_scale = sm_scale * 1.44269504
     # load q and do: they will stay in SRAM throughout
-    q = tl.load(q_ptrs)
+    q = tl.load(Q_block_ptr)
     q = (q * qk_scale).to(tl.float16)
-    do = tl.load(do_ptrs)
+    do = tl.load(DO_block_ptr)
     Di = tl.load(D_ptrs + offs_m)
     l_i = tl.load(l_ptrs + offs_m)
     dq = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
@@ -329,8 +435,8 @@ def _bwd_kernel_dq(
     hi = (start_m + 1) * BLOCK_M
     for start_n in range(lo, hi, BLOCK_N):
         # -- load k, v --
-        k = tl.load(k_ptrs)
-        v = tl.load(v_ptrs)
+        k = tl.load(K_block_ptr)
+        v = tl.load(V_block_ptr)
         # -- compute qk ----
         qk = tl.dot(q, k)
         qk = tl.where(offs_m[:, None] >= (offs_n[None, :] + start_n), qk, float("-inf"))
@@ -343,12 +449,20 @@ def _bwd_kernel_dq(
         # compute dq
         dq += tl.dot(ds.to(Q.dtype.element_ty), tl.trans(k))
         # update pointers
-        k_ptrs += BLOCK_N * stride_kn
-        v_ptrs += BLOCK_N * stride_vk
+        K_block_ptr = tl.advance(K_block_ptr, (0, BLOCK_N))
+        V_block_ptr = tl.advance(V_block_ptr, (0, BLOCK_N))
     # initialize pointers to output
-    off_dq = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_n[None, :] * stride_qk
-    dq_ptrs = DQ + off_dq
-    tl.store(dq_ptrs, (dq * sm_scale).to(tl.float16))
+    DQ_block_ptr = tl.make_block_ptr(
+        base=DQ + qvk_offset,
+        shape=(N_CTX, BLOCK_DMODEL),
+        strides=(stride_qm, stride_qk),
+        offsets=(start_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_DMODEL),
+        order=(1, 0)
+    )
+    #off_dq = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_n[None, :] * stride_qk
+    #dq_ptrs DQDblock_Q +off_dq
+    tl.store(DQ_block_ptr, (dq * sm_scale).to(tl.float16))
 
 empty = torch.empty(128, device="cuda")
 
@@ -375,7 +489,7 @@ class _attention_triton(torch.autograd.Function):
             k.stride(0), k.stride(1), k.stride(2), k.stride(3),
             v.stride(0), v.stride(1), v.stride(2), v.stride(3),
             o.stride(0), o.stride(1), o.stride(2), o.stride(3),
-            q.shape[0], q.shape[1], q.shape[2],
+            q.shape[0], q.shape[1], q.shape[2], 0,
             BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_DMODEL=Lk,
             IS_CAUSAL=causal,
             num_warps=num_warps,
@@ -394,7 +508,7 @@ class _attention_triton(torch.autograd.Function):
         BLOCK = 64
         q, k, v, o, l = ctx.saved_tensors
         do = do.contiguous()
-        dq = torch.zeros_like(q, dtype=torch.float32)
+        dq = torch.zeros_like(q)
         dk = torch.empty_like(k)
         dv = torch.empty_like(v)
         do_scaled = torch.empty_like(do)

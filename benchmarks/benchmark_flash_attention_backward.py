@@ -76,7 +76,7 @@ torch.manual_seed(0)
 repeats = 10
 
 dropout_p = 0.1
-causal = False
+causal = True
 dtype = torch.float16
 device = 'cuda'
 
@@ -143,8 +143,7 @@ for bs in batch_size:
         # 2x because each MAC has 2 ops.
         flops_per_matmul = 7. * bs * nheads * sq * sq * d
         total_flops = 2 * flops_per_matmul
-        if causal:
-            total_flops *= .5
+        total_flops *= .5
         triton_tflops = total_flops / triton_time * 1e-12
         print(f'{bs:3d}  {sq:10d} {triton_tflops:.2f} tflops {triton_time*1e3:.3f} ms')
 
