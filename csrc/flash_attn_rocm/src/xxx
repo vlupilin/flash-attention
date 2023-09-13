@@ -1,0 +1,296 @@
+./bwd_device_gemm_launcher.h:  float avg_time = invoker.Run(argument, StreamConfig{stream, time_kernel});
+./flash_bwd_runner_gfx90a.h:class FlashBwdRunner {
+./flash_bwd_runner_gfx90a.h:  explicit FlashBwdRunner(LaunchParams<FlashBwdParams> &launch_params)
+./flash_bwd_runner_gfx90a.h:  void Run();
+./flash_bwd_runner_gfx90a.h:}; // class FlashBwdRunner
+./flash_bwd_runner_kloop_hdim128_bf16_causal_gfx90a.cpp:void FlashBwdRunner::Run<false, 128, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_kloop_hdim128_bf16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_bf16_causal_gfx90a.cu:void FlashBwdRunner::Run<false, 128, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_kloop_hdim128_bf16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<false, 128, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<false, 128, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_fp16_causal_gfx90a.cpp:void FlashBwdRunner::Run<false, 128, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_kloop_hdim128_fp16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_fp16_causal_gfx90a.cu:void FlashBwdRunner::Run<false, 128, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_kloop_hdim128_fp16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<false, 128, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<false, 128, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_bf16_causal_gfx90a.cpp:void FlashBwdRunner::Run<false, 32, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_kloop_hdim32_bf16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_bf16_causal_gfx90a.cu:void FlashBwdRunner::Run<false, 32, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_kloop_hdim32_bf16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<false, 32, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<false, 32, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_fp16_causal_gfx90a.cpp:void FlashBwdRunner::Run<false, 32, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_kloop_hdim32_fp16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_fp16_causal_gfx90a.cu:void FlashBwdRunner::Run<false, 32, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_kloop_hdim32_fp16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<false, 32, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<false, 32, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_bf16_causal_gfx90a.cpp:void FlashBwdRunner::Run<false, 64, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_kloop_hdim64_bf16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_bf16_causal_gfx90a.cu:void FlashBwdRunner::Run<false, 64, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_kloop_hdim64_bf16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<false, 64, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<false, 64, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_fp16_causal_gfx90a.cpp:void FlashBwdRunner::Run<false, 64, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_kloop_hdim64_fp16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_fp16_causal_gfx90a.cu:void FlashBwdRunner::Run<false, 64, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_kloop_hdim64_fp16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<false, 64, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<false, 64, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_bf16_causal_gfx90a.cpp:void FlashBwdRunner::Run<true, 128, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_qloop_hdim128_bf16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_bf16_causal_gfx90a.cu:void FlashBwdRunner::Run<true, 128, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_qloop_hdim128_bf16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<true, 128, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<true, 128, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_fp16_causal_gfx90a.cpp:void FlashBwdRunner::Run<true, 128, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_qloop_hdim128_fp16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_fp16_causal_gfx90a.cu:void FlashBwdRunner::Run<true, 128, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_qloop_hdim128_fp16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<true, 128, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<true, 128, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_bf16_causal_gfx90a.cpp:void FlashBwdRunner::Run<true, 32, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_qloop_hdim32_bf16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_bf16_causal_gfx90a.cu:void FlashBwdRunner::Run<true, 32, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_qloop_hdim32_bf16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<true, 32, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<true, 32, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_fp16_causal_gfx90a.cpp:void FlashBwdRunner::Run<true, 32, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_qloop_hdim32_fp16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_fp16_causal_gfx90a.cu:void FlashBwdRunner::Run<true, 32, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_qloop_hdim32_fp16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<true, 32, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<true, 32, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_bf16_causal_gfx90a.cpp:void FlashBwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_qloop_hdim64_bf16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_bf16_causal_gfx90a.cu:void FlashBwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true>() {
+./flash_bwd_runner_qloop_hdim64_bf16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<true, 64, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<true, 64, device_gemm_trait::BFloat16, false>() {
+./flash_bwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_fp16_causal_gfx90a.cpp:void FlashBwdRunner::Run<true, 64, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_qloop_hdim64_fp16_causal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_fp16_causal_gfx90a.cu:void FlashBwdRunner::Run<true, 64, device_gemm_trait::Float16, true>() {
+./flash_bwd_runner_qloop_hdim64_fp16_causal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cpp:void FlashBwdRunner::Run<true, 64, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cpp:} // FlashBwdRunner::Run()
+./flash_bwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cu:void FlashBwdRunner::Run<true, 64, device_gemm_trait::Float16, false>() {
+./flash_bwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cu:} // FlashBwdRunner::Run()
+./flash_fwd_runner_gfx90a.h:class FlashFwdRunner {
+./flash_fwd_runner_gfx90a.h:  explicit FlashFwdRunner(LaunchParams<FlashFwdParams> &launch_params)
+./flash_fwd_runner_gfx90a.h:  void Run(bool is_dropout);
+./flash_fwd_runner_gfx90a.h:}; // class FlashFwdRunnerBase
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 128, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim128_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 32, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim32_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<false, 64, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_kloop_hdim64_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 128, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim128_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 32, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim32_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::BFloat16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_bf16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, true, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, true, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_causal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cpp:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cpp:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, false, true>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cu:void FlashFwdRunner::Run<true, 64, device_gemm_trait::Float16, false, false>(bool is_dropout) {
+./flash_fwd_runner_qloop_hdim64_fp16_noncausal_gfx90a.cu:} // FlashFwdRunner::Run()
+./fwd_device_gemm_launcher.h:  float avg_time = invoker.Run(argument, StreamConfig{stream, time_kernel});
