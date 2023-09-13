@@ -58,7 +58,7 @@ static constexpr bool kNonDeterministic = false;
 static constexpr auto kGemmSpecDefault = GemmSpec::Default;
 static constexpr auto kGemmSpecPadding = GemmSpec::MNKOPadding;
 static constexpr auto kMaskingSpecDefault = MaskingSpec::MaskDisabled;                                        
-static constexpr auto kMaskingSpecCausal = MaskingSpec::MaskOutUpperTriangle;
+static constexpr auto kMaskingSpecCausal = MaskingSpec::MaskUpperTriangleFromTopLeft;
 
 template <typename InputDataType_,
           GemmSpec kGemmSpec_,
@@ -74,8 +74,8 @@ struct Forward {
   using GemmDataType     = InputDataType_;
   using ZDataType        = Int32;
   using LSEDataType      = Float32;
-  using Acc0BiasDataType = ck::Tuple<>;
-  using Acc1BiasDataType = ck::Tuple<>;
+  using Acc0BiasDataType = void;
+  using Acc1BiasDataType = void;
   using AElementOp       = PassThrough;
   using B0ElementOp      = PassThrough;
   using Acc0ElementOp    = Scale;
@@ -116,8 +116,8 @@ struct Backward {
   using AccDataType      = Float32;
   using ShuffleDataType  = Float32;
   using LSEDataType      = Float32;
-  using Acc0BiasDataType = ck::Tuple<>;
-  using Acc1BiasDataType = ck::Tuple<>;
+  using Acc0BiasDataType = void;
+  using Acc1BiasDataType = void;
   using Acc0ElementOp    = Scale;
 
   static constexpr Index kNumDimG = 2;

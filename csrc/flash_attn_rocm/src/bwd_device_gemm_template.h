@@ -61,6 +61,7 @@ using DeviceGemmQLoopHeadDim32 = device_op::DeviceGroupedMultiheadAttentionBackw
         32,          // KPerBlock
         32,          // Gemm1NPerBlock
         32,          // Gemm1KPerBlock
+	64,          // Gemm2KPerBlock
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -84,6 +85,7 @@ using DeviceGemmQLoopHeadDim32 = device_op::DeviceGroupedMultiheadAttentionBackw
         8, 
         8, 
         true,
+	4, // D0BlockTransfer
         1, // CShuffleMXdlPerWavePerShuffle
         1, // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 64, 1, 4>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
@@ -120,17 +122,18 @@ using DeviceGemmQLoopHeadDim64 = device_op::DeviceGroupedMultiheadAttentionBackw
         DeviceGemmTraits::kTensorSpecY, 
         1, 
         256,
-        64,          // MPerBlock
+        128,         // MPerBlock
         128,         // NPerBlock
         64,          // KPerBlock
         64,          // Gemm1NPerBlock
         32,          // Gemm1KPerBlock
+	32,          //
         8,           // AK1
         8,           // BK1
         2,           // B1K1
         32,          // MPerXDL
         32,          // NPerXDL
-        2,           // MXdlPerWave
+        4,           // MXdlPerWave
         1,           // NXdlPerWave
         2,           // Gemm1NXdlPerWave
         1,           // Gemm2NXdlPerWave
@@ -148,6 +151,7 @@ using DeviceGemmQLoopHeadDim64 = device_op::DeviceGroupedMultiheadAttentionBackw
         8, 
         8, 
         true,
+	4,
         1, // CShuffleMXdlPerWavePerShuffle
         2, // CShuffleNXdlPerWavePerShuffle
         device_gemm_trait::S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
@@ -186,9 +190,10 @@ using DeviceGemmQLoopHeadDim128 = device_op::DeviceGroupedMultiheadAttentionBack
         256,
         64,          // MPerBlock
         128,         // NPerBlock
-        128,         // KPerBlock
+        64,          // KPerBlock
         128,         // Gemm1NPerBlock
         32,          // Gemm1KPerBlock
+        64,	
         8,           // AK1
         8,           // BK1
         2,           // B1K1
@@ -212,6 +217,7 @@ using DeviceGemmQLoopHeadDim128 = device_op::DeviceGroupedMultiheadAttentionBack
         8, 
         8, 
         true,
+	4,
         device_gemm_trait::S<8, 32, 1>, // B1BlockTransfer
         device_gemm_trait::S<0, 2, 1>, 
         device_gemm_trait::S<0, 2, 1>, 
