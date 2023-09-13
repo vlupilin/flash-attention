@@ -74,7 +74,7 @@ struct Forward {
   using GemmDataType     = InputDataType_;
   using ZDataType        = Int32;
   using LSEDataType      = Float32;
-  using Acc0BiasDataType = void;
+  using Acc0BiasDataType = InputDataType_;
   using Acc1BiasDataType = void;
   using AElementOp       = PassThrough;
   using B0ElementOp      = PassThrough;

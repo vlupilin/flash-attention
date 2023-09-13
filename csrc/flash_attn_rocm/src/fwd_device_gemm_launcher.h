@@ -61,6 +61,7 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
   auto p_b0 = params.k_ptr;
   auto p_b1 = params.v_ptr;
   auto p_c = params.o_ptr;
+  auto p_d = params.bias_ptr;
   auto p_z = params.s_ptr;
   auto p_lse = params.softmax_lse_ptr;
 
@@ -112,6 +113,10 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
         output_permute
             ? std::vector<ck::index_t>{M * G1 * O, O, G1 * O, 1} // C layout [G0, M, G1, O]
             : std::vector<ck::index_t>{G1 * M * O, M * O, O, 1}; // C layout [G0, G1, M, O]
+
+    std::vector<ck::index_t> d_gs_ms_ns_lengths{G0, G1, M, N};
+    std::vector<ck::index_t> d_gs_ms_ns_strides =
+	    std::vector<ck::index_t>{G1 * M * N, M * N, N, 1}; // D layout [G0, G1, M, N]
     
     std::vector<ck::index_t> z_gs_ms_ns_lengths{G0, G1, M, N};
     std::vector<ck::index_t> z_gs_ms_ns_strides =
@@ -135,8 +140,8 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
                             z_gs_ms_ns_strides,
                             lse_gs_ms_lengths,
                             lse_gs_ms_strides,
-                            {},   // acc0_biases_gs_ms_ns_lengths
-                            {},   // acc0_biases_gs_ms_ns_strides
+                            d_gs_ms_ns_lengths,   // acc0_biases_gs_ms_ns_lengths
+                            d_gs_ms_ns_strides,   // acc0_biases_gs_ms_ns_strides
                             {},   // acc1_biases_gs_ms_os_lengths
                             {}}); // acc1_biases_gs_ms_os_strides
                               
@@ -151,7 +156,7 @@ void DeviceGemmInstanceLauncher<DeviceGemmTemplate, DeviceGemmTraits>::Launch(Fl
       p_c,
       p_z,
       p_lse,
-      {},
+      p_d,
       {},
       problem_descs,
       a_element_op,

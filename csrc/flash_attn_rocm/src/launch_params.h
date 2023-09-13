@@ -28,6 +28,7 @@ struct QkvParams {
   std::vector<const void*> q_ptr; //changed to ck input type
   std::vector<const void*> k_ptr;
   std::vector<const void*> v_ptr;
+  std::vector<const void*> bias_ptr;
 
   std::vector<at::Tensor> q_tensors;
   std::vector<at::Tensor> k_tensors;

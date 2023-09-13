@@ -55,6 +55,7 @@ void set_params_fprop(FlashFwdParams &params,
                       const at::Tensor &q,
                       const at::Tensor &k,
                       const at::Tensor &v,
+                      const at::Tensor &bias,
                       at::Tensor &out,
                       const at::Tensor &cu_seqlens_q,
                       const at::Tensor &cu_seqlens_k,
@@ -109,6 +110,7 @@ void set_params_fprop(FlashFwdParams &params,
     char* q_ptr = reinterpret_cast<char*>(q.data_ptr());
     char* k_ptr = reinterpret_cast<char*>(k.data_ptr());
     char* v_ptr = reinterpret_cast<char*>(v.data_ptr());
+    char* bias_ptr = reinterpret_cast<char*>(bias.data_ptr());
 
     char* out_ptr = reinterpret_cast<char*>(out.data_ptr());
     char* lse_ptr = reinterpret_cast<char*>(softmax_lse_d);
@@ -136,6 +138,8 @@ void set_params_fprop(FlashFwdParams &params,
         int temp_seqlen_k = params.host_seqlens_k[i+1] - params.host_seqlens_k[i];
         int temp_k_stride = get_size_in_bytes(d * h * temp_seqlen_k, data_type);
 
+	int temp_bias_stride = get_size_in_bytes(h * temp_seqlen_q * temp_seqlen_k, data_type);
+
         if(!params.is_mnko_padding && d <= 32){
             params.is_mnko_padding = ((temp_seqlen_q % 128)==0 && (temp_seqlen_k % 128)==0 ? false : true);
         }
@@ -162,6 +166,9 @@ void set_params_fprop(FlashFwdParams &params,
 
         params.o_ptr.push_back(reinterpret_cast<void*>(out_ptr));
         out_ptr = out_ptr + temp_q_stride;
+
+	params.bias_ptr.push_back(reinterpret_cast<void*>(bias_ptr));
+	bias_ptr = bias_ptr + temp_bias_stride;
 
         params.softmax_lse_ptr.push_back(reinterpret_cast<void*>(lse_ptr));
         int temp_lse_stride = get_size_in_bytes(h * seqlen_q, acc_type);
@@ -367,6 +374,7 @@ std::vector<at::Tensor>
 mha_fwd(const at::Tensor &q,
         const at::Tensor &k,
         const at::Tensor &v,
+	const at::Tensor &bias,
         at::Tensor &out,
         const at::Tensor &cu_seqlens_q,
         const at::Tensor &cu_seqlens_k,
@@ -451,7 +459,7 @@ mha_fwd(const at::Tensor &q,
                      max_seqlen_k,
                      num_heads,
                      head_size,
-                     q, k, v, out,
+                     q, k, v, bias, out,
                      cu_seqlens_q,
                      cu_seqlens_k,
                      nullptr,
