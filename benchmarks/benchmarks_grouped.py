@@ -72,12 +72,12 @@ for dtype in [torch.float16, torch.bfloat16]:
                     x_unpad, indices, cu_seqlens, max_seqlen_in_batch = unpad_input(x, attention_mask_bool)
                     q, k, v = Wqkv(x_unpad).chunk(3, dim=-1)
                     print(q.shape)
-                    q = rearrange(q, '(b s) (h d) -> b s h d', s=seqlen, h=nheads).detach().contiguous().requires_grad_()
-                    k = rearrange(k, '(b s) (h d) -> b s h d', s=seqlen, h=nheads).detach().contiguous().requires_grad_()
-                    v = rearrange(v, '(b s) (h d) -> b s h d', s=seqlen, h=nheads).detach().contiguous().requires_grad_()
+                    q = rearrange(q, '(b s) (h d) -> (b s) h d', s=seqlen, h=nheads).detach().contiguous().requires_grad_()
+                    k = rearrange(k, '(b s) (h d) -> (b s) h d', s=seqlen, h=nheads).detach().contiguous().requires_grad_()
+                    v = rearrange(v, '(b s) (h d) -> (b s) h d', s=seqlen, h=nheads).detach().contiguous().requires_grad_()
                     print(q.shape)
                     # cu_seqlens = cu_seqlens.cpu()
-                    fn = lambda q, k, v: flash_attn_func(q, k, v, dropout_p=dropout_p, causal=causal)
+                    fn = lambda q, k, v: flash_attn_varlen_func(q, k, v, cu_seqlens, cu_seqlens, max_seqlen_in_batch, max_seqlen_in_batch, dropout_p=dropout_p, causal=causal)
                     t, m1 = benchmark_forward(fn, q, k, v, repeats=repeats, desc='FlashAttention')
                     t, m2 = benchmark_backward(fn, q, k, v, repeats=repeats, desc='FlashAttention')
                     fwd_time = m1.mean * 1000
@@ -94,6 +94,6 @@ for dtype in [torch.float16, torch.bfloat16]:
 # if not os.path.exists(path):
 #     os.makedirs(path)
 
-workbook.save(f'performance.xls')
+workbook.save(f'performance_grouped.xls')
 
 
