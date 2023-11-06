@@ -50,20 +50,79 @@ import torch
 import triton
 import triton.language as tl
 
+@triton.jit
+def max_fn(x, y):
+    return tl.math.max(x, y)
 
 @triton.jit
-def _fwd_kernel(
-    Q, K, V, sm_scale,
-    L,
-    Out,
+def _attn_fwd_inner(
+    acc, l_i, m_i, q,
+    K_block_ptr, V_block_ptr,
+    start_m,
+    BLOCK_M: tl.constexpr,
+    BLOCK_DMODEL: tl.constexpr,
+    BLOCK_N: tl.constexpr,
+    STAGE: tl.constexpr,
+    offs_m: tl.constexpr,
+    offs_n: tl.constexpr,
+    N_CTX,
+    pre_load_v: tl.constexpr,
+):
+    # range of values handled by this stage
+    if STAGE == 1:
+        lo, hi = 0, start_m * BLOCK_M
+    elif STAGE == 2:
+        lo, hi = start_m * BLOCK_M, (start_m + 1) * BLOCK_M
+        lo = tl.multiple_of(lo, BLOCK_M)
+        K_block_ptr = tl.advance(K_block_ptr, (0, lo))
+        V_block_ptr = tl.advance(V_block_ptr, (lo, 0))
+    # causal = False
+    else:
+        lo, hi = 0, N_CTX
+    # loop over k, v and update accumulator
+    for start_n in range(lo, hi, BLOCK_N):
+        start_n = tl.multiple_of(start_n, BLOCK_N)
+        # -- compute qk ----
+        k = tl.load(K_block_ptr)
+        if pre_load_v:
+            v = tl.load(V_block_ptr)
+        qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
+        if STAGE == 2:
+            mask = offs_m[:, None] >= (start_n + offs_n[None, :])
+            qk = tl.where(mask, qk, float("-inf"))
+        qk += tl.dot(q, k)
+        m_ij = tl.maximum(m_i, tl.max(qk, 1))
+        qk = qk - m_ij[:, None]
+        p = tl.math.exp2(qk)
+        # -- update output accumulator --
+        alpha = tl.math.exp2(m_i - m_ij)
+        acc = acc * alpha[:, None]
+        if not pre_load_v:
+            v = tl.load(V_block_ptr)
+        acc += tl.dot(p.to(V_block_ptr.dtype.element_ty), v)
+        # -- update m_i and l_i
+        l_ij = tl.sum(p, 1)
+        l_i = l_i * alpha + l_ij
+        # update m_i and l_i
+        m_i = m_ij
+        V_block_ptr = tl.advance(V_block_ptr, (BLOCK_N, 0))
+        K_block_ptr = tl.advance(K_block_ptr, (0, BLOCK_N))
+    return acc, l_i, m_i
+
+@triton.jit
+def _attn_fwd(
+    Q, K, V, sm_scale, M, Out,
     stride_qz, stride_qh, stride_qm, stride_qk,
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vk, stride_vn,
     stride_oz, stride_oh, stride_om, stride_on,
-    Z, H, N_CTX,
-    BLOCK_M: tl.constexpr, BLOCK_DMODEL: tl.constexpr,
+    Z, H,
+    N_CTX,
+    STAGE: tl.constexpr,
+    BLOCK_M: tl.constexpr,
+    BLOCK_DMODEL: tl.constexpr,
     BLOCK_N: tl.constexpr,
-    IS_CAUSAL: tl.constexpr,
+    pre_load_v: tl.constexpr,
 ):
     start_m = tl.program_id(0)
     # Select batch
@@ -112,38 +171,35 @@ def _fwd_kernel(
     qk_scale = sm_scale * 1.44269504
     # load q: it will stay in SRAM throughout
     q = tl.load(Q_block_ptr)
-    q = (q * qk_scale).to(tl.bfloat16)
-    # loop over k, v and update accumulator
-    lo = 0
-    hi = (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX
-    for start_n in range(lo, hi, BLOCK_N):
-        # -- load k, v --
-        k = tl.load(K_block_ptr)
-        v = tl.load(V_block_ptr)
-        # -- compute qk ---
-        qk = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
-        if IS_CAUSAL:
-            qk = tl.where(offs_m[:, None] >= (start_n + offs_n[None, :]), qk, float("-inf"))
-        qk += tl.dot(q, k)
-        # -- compute scaling constant ---
-        m_i_new = tl.maximum(m_i, tl.max(qk, 1))
-        alpha = tl.math.exp2(m_i - m_i_new)
-        p = tl.math.exp2(qk - m_i_new[:, None])
-        # -- scale and update acc --
-        acc_scale = l_i * 0 + alpha  # workaround some compiler bug
-        acc *= acc_scale[:, None]
-        acc += tl.dot(p.to(tl.bfloat16), v)
-        # -- update m_i and l_i --
-        l_i = l_i * alpha + tl.sum(p, 1)
-        m_i = m_i_new
-        # update pointers
-        K_block_ptr = tl.advance(K_block_ptr, (0, BLOCK_N))
-        V_block_ptr = tl.advance(V_block_ptr, (BLOCK_N, 0))
-    # write back l and m
+    q = (q * qk_scale).to(Q.dtype.element_ty)
+    # stage 1: off-band
+    # For causal = True, STAGE = 3 and _attn_fwd_inner gets 1 as its STAGE
+    # For causal = False, STAGE = 1, and _attn_fwd_inner gets 3 as its STAGE
+    if STAGE & 1:
+        acc, l_i, m_i = _attn_fwd_inner(
+            acc, l_i, m_i, q, K_block_ptr, V_block_ptr,
+            start_m,
+            BLOCK_M, BLOCK_DMODEL, BLOCK_N,
+            4 - STAGE, offs_m, offs_n,
+            N_CTX, pre_load_v,
+        )
+    # stage 2: on-band
+    if STAGE & 2:
+        # barrier makes it easier for compielr to schedule the
+        # two loops independently
+        tl.debug_barrier()
+        acc, l_i, m_i = _attn_fwd_inner(
+            acc, l_i, m_i, q, K_block_ptr, V_block_ptr,
+            start_m,
+            BLOCK_M, BLOCK_DMODEL, BLOCK_N,
+            2, offs_m, offs_n,
+            N_CTX, pre_load_v,
+        )
+    # epilogue
+    # write back m
     acc = acc / l_i[:, None]
-    l_ptrs = L + (off_z * H * N_CTX + off_h * N_CTX) + offs_m
-    tl.store(l_ptrs, m_i + tl.math.log2(l_i))
-    # write back O
+    m_ptrs = M + (off_z * H * N_CTX + off_h * N_CTX) + offs_m
+    tl.store(m_ptrs, m_i + tl.math.log2(l_i))
     o_offset = off_z * stride_oz + off_h * stride_oh
     O_block_ptr = tl.make_block_ptr(
         base=Out + o_offset,
@@ -153,8 +209,7 @@ def _fwd_kernel(
         block_shape=(BLOCK_M, BLOCK_DMODEL),
         order=(1, 0)
     )
-    tl.store(O_block_ptr, acc.to(tl.bfloat16))
-
+    tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
 @triton.jit
 def _bwd_preprocess_do_o_dot(
@@ -206,7 +261,8 @@ def _bwd_kernel_dk_dv(
     qvk_offset = off_z * stride_qz + off_h * stride_qh
     dqvk_offset = off_z * stride_dqkvz + off_h * stride_dqkvh
     q_offset = qvk_offset + start_m * BLOCK_M * stride_qm
-    do_offset = dqvk_offset + start_m * BLOCK_M * stride_dom
+    do_base_offset = off_z * stride_doz + off_h * stride_doh
+    do_offset = do_base_offset + start_m * BLOCK_M * stride_dom
     # initialize offsets
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
@@ -250,7 +306,7 @@ def _bwd_kernel_dk_dv(
     qk_scale = sm_scale * 1.44269504
     # load k and v: they will stay in SRAM throughout
     k = tl.load(K_block_ptr)
-    k = (k * qk_scale).to(tl.bfloat16)
+    k = (k * qk_scale).to(Q.dtype.element_ty)
     v = tl.load(V_block_ptr)
     dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
@@ -300,8 +356,8 @@ def _bwd_kernel_dk_dv(
         block_shape=(BLOCK_M, BLOCK_DMODEL),
         order=(1, 0)
     )
-    tl.store(DK_block_ptr, (dk * sm_scale).to(tl.bfloat16))
-    tl.store(DV_block_ptr, dv.to(tl.bfloat16))
+    tl.store(DK_block_ptr, (dk * sm_scale).to(DK.dtype.element_ty))
+    tl.store(DV_block_ptr, dv.to(DV.dtype.element_ty))
 
 @triton.jit
 def _bwd_kernel_dq(
@@ -327,6 +383,8 @@ def _bwd_kernel_dq(
     # previous block offset by BLOCK_M x D_HEAD.
     qvk_offset = off_z * stride_qz + off_h * stride_qh
     dqvk_offset = off_z * stride_dqkvz + off_h * stride_dqkvh
+    do_base_offset = off_z * stride_doz + off_h * stride_doh
+    do_offset = do_base_offset + start_m * BLOCK_M * stride_dom
     # initialize offsets
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_n = tl.arange(0, BLOCK_N)
@@ -336,7 +394,7 @@ def _bwd_kernel_dq(
         base=Q + qvk_offset,
         shape=(N_CTX, BLOCK_DMODEL),
         strides=(stride_qm, stride_qk),
-        offsets=(start_m * BLOCK_M, 0),
+        offsets=(0, 0),
         block_shape=(BLOCK_M, BLOCK_DMODEL),
         order=(1, 0)
     )
@@ -357,10 +415,10 @@ def _bwd_kernel_dq(
         order=(0, 1)
     )
     DO_block_ptr = tl.make_block_ptr(
-        base=DO + dqvk_offset,
+        base=DO + do_offset,
         shape=(N_CTX, BLOCK_DMODEL),
         strides=(stride_dom, stride_dok),
-        offsets=(start_m * BLOCK_M, 0),
+        offsets=(0, 0),
         block_shape=(BLOCK_M, BLOCK_DMODEL),
         order=(1, 0)
     )
@@ -370,7 +428,7 @@ def _bwd_kernel_dq(
     qk_scale = sm_scale * 1.44269504
     # load q and do: they will stay in SRAM throughout
     q = tl.load(Q_block_ptr)
-    q = (q * qk_scale).to(tl.bfloat16)
+    q = (q * qk_scale).to(Q.dtype.element_ty)
     do = tl.load(DO_block_ptr)
     Di = tl.load(D_ptrs + offs_m)
     l_i = tl.load(l_ptrs + offs_m)
@@ -406,7 +464,7 @@ def _bwd_kernel_dq(
         block_shape=(BLOCK_M, BLOCK_DMODEL),
         order=(1, 0)
     )
-    tl.store(DQ_block_ptr, (dq * sm_scale).to(tl.bfloat16))
+    tl.store(DQ_block_ptr, (dq * sm_scale).to(DQ.dtype.element_ty))
 
 
 def _flash_attn_forward(q, k, v, bias=None, causal=False, softmax_scale=None):
@@ -419,48 +477,35 @@ def _flash_attn_forward(q, k, v, bias=None, causal=False, softmax_scale=None):
     assert q.dtype == k.dtype == v.dtype, 'All tensors must have the same type'
     assert q.dtype in [torch.float16, torch.bfloat16], 'Only support fp16 and bf16'
     assert q.is_cuda and k.is_cuda and v.is_cuda
+    assert bias is None, 'Bias for Triton FA not supported yet'
     softmax_scale = softmax_scale or 1.0 / math.sqrt(d)
-
-    has_bias = bias is not None
-    bias_type = 'none'
-    if has_bias:
-        assert bias.dtype in [q.dtype, torch.float]
-        assert bias.is_cuda
-        assert bias.dim() == 4
-        if bias.stride(-1) != 1:
-            bias = bias.contiguous()
-        if bias.shape[2:] == (1, seqlen_k):
-            bias_type = 'vector'
-        elif bias.shape[2:] == (seqlen_q, seqlen_k):
-            bias_type = 'matrix'
-        else:
-            raise RuntimeError('Last 2 dimensions of bias must be (1, seqlen_k)'
-                               ' or (seqlen_q, seqlen_k)')
-        bias = bias.expand(batch, nheads, seqlen_q, seqlen_k)
-    bias_strides = (bias.stride(0), bias.stride(1), bias.stride(2)) if has_bias else (0, 0, 0)
 
     seqlen_q_rounded = math.ceil(seqlen_q / 128) * 128
     lse = torch.empty((batch, nheads, seqlen_q_rounded), device=q.device, dtype=torch.float32)
-    tmp = torch.empty((batch, nheads, seqlen_q_rounded), device=q.device, dtype=torch.float32)
-    o = torch.zeros_like(q)
+    o = torch.empty_like(q, dtype=v.dtype)
+    BLOCK_M=256
+    BLOCK_N=32
 
-    BLOCK_HEADDIM = max(triton.next_power_of_2(d), 16)
-    BLOCK = 64
-    num_warps = 4 #if d <= 64 else 8
-    grid = (triton.cdiv(seqlen_q, BLOCK), batch * nheads)
-    _fwd_kernel[grid](
-        q, k, v, softmax_scale,
-        lse,
-        o,
+    stage = 3 if causal else 1
+    grid = lambda META: (
+        triton.cdiv(seqlen_q, BLOCK_M),
+        batch * nheads,
+        1
+    )
+
+    _attn_fwd[grid](
+        q, k, v, softmax_scale, lse, o,
         q.stride(0), q.stride(2), q.stride(1), q.stride(3),
         k.stride(0), k.stride(2), k.stride(1), k.stride(3),
         v.stride(0), v.stride(2), v.stride(1), v.stride(3),
         o.stride(0), o.stride(2), o.stride(1), o.stride(3),
-        batch, nheads, seqlen_q,
-        # Can't use kwargs here because triton autotune expects key to be args, not kwargs
-        IS_CAUSAL=causal,
-        BLOCK_M=BLOCK, BLOCK_N=BLOCK, BLOCK_DMODEL=d,
-        num_warps=num_warps,
+        batch, nheads,
+        N_CTX=seqlen_q,
+        BLOCK_DMODEL=d,
+        BLOCK_M=BLOCK_M,
+        BLOCK_N=BLOCK_N,
+        pre_load_v=False,
+        STAGE=stage,
         num_stages=1,
     )
     return o, lse, softmax_scale  # softmax_scale could have been updated
