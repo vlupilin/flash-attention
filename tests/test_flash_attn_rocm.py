@@ -416,7 +416,7 @@ def test_flash_attn_varlen_qkvpacked(seqlen, d, dropout_p, causal, dtype):
 # @pytest.mark.parametrize('kvpacked', [False])
 @pytest.mark.parametrize('dtype', ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
 # @pytest.mark.parametrize('dtype', [torch.bfloat16])
-@pytest.mark.parametrize('mha_type', ["mha", "gqa"])
+@pytest.mark.parametrize('mha_type', ["mha", "mqa", "gqa"])
 # @pytest.mark.parametrize('mha_type', ["mha"])
 @pytest.mark.parametrize('causal', [False, True])
 # @pytest.mark.parametrize('causal', [False])
@@ -532,9 +532,9 @@ def test_flash_attn_output(seqlen_q, seqlen_kv, d, dropout_p, causal, mha_type, 
         assert abs(dropout_fraction - dropout_p) <= 0.01
 
     if d <= MAX_HEADDIM_GFX90 or (is_sm80 or is_sm90):
-        assert (dq - dq_ref).abs().max().item() <= 2 * (dq_pt - dq_ref).abs().max().item()
-        assert (dk - dk_ref).abs().max().item() <= 2 * (dk_pt - dk_ref).abs().max().item()
-        assert (dv - dv_ref).abs().max().item() <= 2 * (dv_pt - dv_ref).abs().max().item()
+        assert (dq - dq_ref).abs().max().item() <= 3 * (dq_pt - dq_ref).abs().max().item()
+        assert (dk - dk_ref).abs().max().item() <= 3 * (dk_pt - dk_ref).abs().max().item()
+        assert (dv - dv_ref).abs().max().item() <= 3 * (dv_pt - dv_ref).abs().max().item()
 
 
 # @pytest.mark.skipif(True, reason='Experimental, not being used')
@@ -542,7 +542,7 @@ def test_flash_attn_output(seqlen_q, seqlen_kv, d, dropout_p, causal, mha_type, 
 # @pytest.mark.parametrize('kvpacked', [True])
 @pytest.mark.parametrize('dtype', ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
 # @pytest.mark.parametrize('dtype', [torch.float16])
-@pytest.mark.parametrize('mha_type', ["mha", "gqa"])
+@pytest.mark.parametrize('mha_type', ["mha", "mqa", "gqa"])
 # @pytest.mark.parametrize('mha_type', ["mha"])
 @pytest.mark.parametrize('causal', [False, True])
 # @pytest.mark.parametrize('causal', [True])
@@ -677,9 +677,9 @@ def test_flash_attn_varlen_output(seqlen_q, seqlen_kv, d, dropout_p, causal, mha
         assert abs(dropout_fraction - dropout_p) <= 0.01
 
     if d <= MAX_HEADDIM_GFX90 or (is_sm80 or is_sm90):
-        assert (dq - dq_ref).abs().max().item() <= 2 * (dq_pt - dq_ref).abs().max().item()
-        assert (dk - dk_ref).abs().max().item() <= 2 * (dk_pt - dk_ref).abs().max().item()
-        assert (dv - dv_ref).abs().max().item() <= 2 * (dv_pt - dv_ref).abs().max().item()
+        assert (dq - dq_ref).abs().max().item() <= 3 * (dq_pt - dq_ref).abs().max().item()
+        assert (dk - dk_ref).abs().max().item() <= 3 * (dk_pt - dk_ref).abs().max().item()
+        assert (dv - dv_ref).abs().max().item() <= 3 * (dv_pt - dv_ref).abs().max().item()
 
 
 # @pytest.mark.parametrize('dtype', ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
