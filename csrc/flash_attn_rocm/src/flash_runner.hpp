@@ -85,8 +85,7 @@ private:
       // input, output, gemm, dropout, cshuffle, masking specialization,
       // deterministic
       using DeviceGemmTraits =
-          device_gemm_trait::Backward<T, T, device_gemm_trait::BFloat16, 8,
-                                      kGemmSpec, kMaskingSpec,
+          device_gemm_trait::Backward<T, T, T, 8, kGemmSpec, kMaskingSpec,
                                       kIsDeterministic>;
       using Invoker = bwd_device_gemm::DeviceGemmInvoker<DeviceGemmTemplate,
                                                          DeviceGemmTraits>;
