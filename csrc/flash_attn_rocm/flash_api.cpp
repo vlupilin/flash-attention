@@ -21,21 +21,17 @@ std::vector<torch::Tensor> mha_fwd(
         &out_, // batch_size x seqlen_q x num_heads_q x head_size
     const float p_dropout, const float softmax_scale, const bool is_causal,
     const bool return_softmax, c10::optional<at::Generator> gen_) {
-  auto dprops = at::cuda::getCurrentDeviceProperties();
-  bool is_gfx90x = dprops->major == 9 && dprops->minor == 0;
-  bool is_gfx94x = dprops->major == 9 && dprops->minor == 4;
-  TORCH_CHECK(is_gfx90x || is_gfx94x,
-              "FlashAttention only supports AMD MI200 GPUs or newer.");
+
+  TORCH_CHECK(
+      ck::is_xdl_supported() || ck::is_wmma_supported(),
+      "FlashAttention currently only supports MI100 and RX7000 and above");
 
   auto q_dtype = q.dtype();
   TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
               "FlashAttention only support fp16 and bf16 data type");
-  if (q_dtype == torch::kBFloat16) {
-    TORCH_CHECK(is_gfx90x || is_gfx94x,
-                "bfloat16 is only supported on AMD MI200 GPUs or newer");
-  }
-  TORCH_CHECK(k.dtype() == q_dtype, "query and key must have the same dtype");
-  TORCH_CHECK(v.dtype() == q_dtype, "query and value must have the same dtype");
+
+  TORCH_CHECK(k.dtype() == q_dtype, "Query and key must have the same dtype");
+  TORCH_CHECK(v.dtype() == q_dtype, "Query and value must have the same dtype");
 
   TORCH_CHECK(q.is_cuda(), "Input tensor must be on ROCm device");
   TORCH_CHECK(k.is_cuda(), "Input tensor must be on ROCm device");
@@ -62,7 +58,7 @@ std::vector<torch::Tensor> mha_fwd(
       "FlashAttention forward only supports head dimension at most 128");
   TORCH_CHECK(
       num_heads_q % num_heads_kv == 0,
-      "Number of heads in key/value must divide number of heads in query");
+      "Number of heads in key/value must divide number of heads in Query");
 
   auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
   const int head_size = round_multiple(head_size_og, 8);
@@ -181,21 +177,17 @@ std::vector<torch::Tensor> mha_varlen_fwd(
     const bool return_softmax, // in rocm ,this will return the random number
                                // matrix when doing dropout
     c10::optional<at::Generator> gen_) {
-  auto dprops = at::cuda::getCurrentDeviceProperties();
-  bool is_gfx90x = dprops->major == 9 && dprops->minor == 0;
-  bool is_gfx94x = dprops->major == 9 && dprops->minor == 4;
-  TORCH_CHECK(is_gfx90x || is_gfx94x,
-              "FlashAttention only supports AMD MI200 GPUs or newer.");
+
+  TORCH_CHECK(
+      ck::is_xdl_supported() || ck::is_wmma_supported(),
+      "FlashAttention currently only supports MI100 and RX7000 and above");
 
   auto q_dtype = q.dtype();
   TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
               "FlashAttention only support fp16 and bf16 data type");
-  if (q_dtype == torch::kBFloat16) {
-    TORCH_CHECK(is_gfx90x || is_gfx94x,
-                "bfloat16 is only supported on AMD MI200 GPUs or newer");
-  }
-  TORCH_CHECK(k.dtype() == q_dtype, "query and key must have the same dtype");
-  TORCH_CHECK(v.dtype() == q_dtype, "query and value must have the same dtype");
+
+  TORCH_CHECK(k.dtype() == q_dtype, "Query and key must have the same dtype");
+  TORCH_CHECK(v.dtype() == q_dtype, "Query and value must have the same dtype");
   TORCH_CHECK(cu_seqlens_q.dtype() == torch::kInt32,
               "cu_seqlens_q must have dtype int32");
   TORCH_CHECK(cu_seqlens_kv.dtype() == torch::kInt32,
@@ -231,7 +223,7 @@ std::vector<torch::Tensor> mha_varlen_fwd(
       "FlashAttention forward only supports head dimension at most 128");
   TORCH_CHECK(
       num_heads_q % num_heads_kv == 0,
-      "Number of heads in key/value must divide number of heads in query");
+      "Number of heads in key/value must divide number of heads in Query");
 
   auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
   const int head_size = round_multiple(head_size_og, 8);
@@ -369,24 +361,19 @@ std::vector<torch::Tensor> mha_bwd(
     const float softmax_scale, const bool is_causal,
     c10::optional<at::Generator> gen_,
     c10::optional<torch::Tensor> &rng_state) {
-  auto dprops = at::cuda::getCurrentDeviceProperties();
-  bool is_gfx90x = dprops->major == 9 && dprops->minor == 0;
-  bool is_gfx94x = dprops->major == 9 && dprops->minor == 4;
-  TORCH_CHECK(is_gfx90x || is_gfx94x,
-              "FlashAttention only supports AMD MI200 GPUs or newer.");
+
+  TORCH_CHECK(ck::is_xdl_supported(),
+              "FlashAttention backward only supports MI-series");
 
   auto q_dtype = q.dtype();
   TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
               "FlashAttention only support fp16 and bf16 data type");
-  if (q_dtype == torch::kBFloat16) {
-    TORCH_CHECK(is_gfx90x || is_gfx94x,
-                "bfloat16 is only supported on AMD MI200 GPUs or newer");
-  }
-  TORCH_CHECK(k.dtype() == q_dtype, "query and key must have the same dtype");
-  TORCH_CHECK(v.dtype() == q_dtype, "query and value must have the same dtype");
-  TORCH_CHECK(out.dtype() == q_dtype, "query and out must have the same dtype");
+
+  TORCH_CHECK(k.dtype() == q_dtype, "Query and key must have the same dtype");
+  TORCH_CHECK(v.dtype() == q_dtype, "Query and value must have the same dtype");
+  TORCH_CHECK(out.dtype() == q_dtype, "Query and out must have the same dtype");
   TORCH_CHECK(dout.dtype() == q_dtype,
-              "query and dout must have the same dtype");
+              "Query and dout must have the same dtype");
 
   TORCH_CHECK(q.is_cuda(), "Input tensor must be on ROCm device");
   TORCH_CHECK(k.is_cuda(), "Input tensor must be on ROCm device");
@@ -423,7 +410,7 @@ std::vector<torch::Tensor> mha_bwd(
       "FlashAttention backward only supports head dimension at most 128");
   TORCH_CHECK(
       num_heads_q % num_heads_kv == 0,
-      "Number of heads in key/value must divide number of heads in query");
+      "Number of heads in key/value must divide number of heads in Query");
 
   auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
   TORCH_CHECK(head_size == round_multiple(head_size_og, 8),
@@ -618,24 +605,19 @@ std::vector<torch::Tensor> mha_varlen_bwd(
     const float softmax_scale, const bool zero_tensors, const bool is_causal,
     c10::optional<at::Generator> gen_,
     c10::optional<torch::Tensor> &rng_state) {
-  auto dprops = at::cuda::getCurrentDeviceProperties();
-  bool is_gfx90x = dprops->major == 9 && dprops->minor == 0;
-  bool is_gfx94x = dprops->major == 9 && dprops->minor == 4;
-  TORCH_CHECK(is_gfx90x || is_gfx94x,
-              "FlashAttention only supports AMD MI200 GPUs or newer.");
+
+  TORCH_CHECK(ck::is_xdl_supported(),
+              "FlashAttention backward only supports MI-series");
 
   auto q_dtype = q.dtype();
   TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
               "FlashAttention only support fp16 and bf16 data type");
-  if (q_dtype == torch::kBFloat16) {
-    TORCH_CHECK(is_gfx90x || is_gfx94x,
-                "bfloat16 is only supported on AMD MI200 GPUs or newer");
-  }
-  TORCH_CHECK(k.dtype() == q_dtype, "query and key must have the same dtype");
-  TORCH_CHECK(v.dtype() == q_dtype, "query and value must have the same dtype");
-  TORCH_CHECK(out.dtype() == q_dtype, "query and out must have the same dtype");
+
+  TORCH_CHECK(k.dtype() == q_dtype, "Query and key must have the same dtype");
+  TORCH_CHECK(v.dtype() == q_dtype, "Query and value must have the same dtype");
+  TORCH_CHECK(out.dtype() == q_dtype, "Query and out must have the same dtype");
   TORCH_CHECK(dout.dtype() == q_dtype,
-              "query and dout must have the same dtype");
+              "Query and dout must have the same dtype");
   TORCH_CHECK(cu_seqlens_q.dtype() == torch::kInt32,
               "cu_seqlens_q must have dtype int32");
   TORCH_CHECK(cu_seqlens_kv.dtype() == torch::kInt32,
@@ -681,7 +663,7 @@ std::vector<torch::Tensor> mha_varlen_bwd(
       "FlashAttention backward only supports head dimension at most 128");
   TORCH_CHECK(
       num_heads_q % num_heads_kv == 0,
-      "Number of heads in key/value must divide number of heads in query");
+      "Number of heads in key/value must divide number of heads in Query");
 
   auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
   TORCH_CHECK(head_size == round_multiple(head_size_og, 8),

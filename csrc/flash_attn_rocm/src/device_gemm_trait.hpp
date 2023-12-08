@@ -37,6 +37,10 @@
 #include "ck/tensor_operation/gpu/device/impl/device_batched_mha_bwd_xdl_cshuffle_qloop_light_v1.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_mha_bwd_xdl_cshuffle_qloop_light_v2.hpp"
 
+// wmma forward gemm
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_query_attention_forward_wmma.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_multi_query_attention_forward_wmma.hpp"
+
 namespace device_gemm_trait {
 using Int32 = int;
 using Int16 = unsigned short;
@@ -65,12 +69,12 @@ static constexpr auto kMaskingSpecCausal =
 template <typename InputDataType_, GemmSpec kGemmSpec_,
           MaskingSpec kMaskingSpec_, bool kIsDeterministic_>
 struct Forward {
-  using ADataType = InputDataType_;
-  using B0DataType = InputDataType_;
-  using B1DataType = InputDataType_;
+  using QDataType = InputDataType_;
+  using KDataType = InputDataType_;
+  using VDataType = InputDataType_;
   using AccDataType = Float32;
-  using CShuffleDataType = Float32;
-  using CDataType = InputDataType_;
+  using OutShuffleDataType = Float32;
+  using OutDataType = InputDataType_;
   using GemmDataType = InputDataType_;
   using ZDataType = Int8;
   using LSEDataType = Float32;
