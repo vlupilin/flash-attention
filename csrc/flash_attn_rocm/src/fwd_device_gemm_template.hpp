@@ -481,6 +481,7 @@ using DeviceGemmBatchedHeadDim128 =
         8, // CShuffleBlockTransferScalarPerVector_NPerBlock
         1, // 4,
         DeviceGemmTraits::kMaskingSpec>;
+#endif
 
 #if defined(__WMMA__)
 namespace wmma {
