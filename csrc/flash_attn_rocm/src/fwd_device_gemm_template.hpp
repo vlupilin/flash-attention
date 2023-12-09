@@ -484,9 +484,9 @@ using DeviceGemmBatchedHeadDim128 =
 namespace wmma {
 template <typename DeviceGemmTraits>
 using DeviceGemmBatchedMQA = device_op::DeviceMultiQueryAttentionForward_Wmma<
-    DeviceGemmTraits::NumDimG, DeviceGemmTraits::NumDimM,
-    DeviceGemmTraits::NumDimN, DeviceGemmTraits::NumDimK,
-    DeviceGemmTraits::NumDimO, typename DeviceGemmTraits::QDataType,
+    DeviceGemmTraits::kNumDimG, DeviceGemmTraits::kNumDimM,
+    DeviceGemmTraits::kNumDimN, DeviceGemmTraits::kNumDimK,
+    DeviceGemmTraits::kNumDimO, typename DeviceGemmTraits::QDataType,
     typename DeviceGemmTraits::KDataType, typename DeviceGemmTraits::VDataType,
     typename DeviceGemmTraits::OutDataType,
     typename DeviceGemmTraits::Acc0BiasDataType,
@@ -522,9 +522,9 @@ using DeviceGemmBatchedMQA = device_op::DeviceMultiQueryAttentionForward_Wmma<
 
 template <typename DeviceGemmTraits>
 using DeviceGemmBatchedGQA = device_op::DeviceGroupedQueryAttentionForward_Wmma<
-    DeviceGemmTraits::NumDimG, DeviceGemmTraits::NumDimM,
-    DeviceGemmTraits::NumDimN, DeviceGemmTraits::NumDimK,
-    DeviceGemmTraits::NumDimO, typename DeviceGemmTraits::QDataType,
+    DeviceGemmTraits::kNumDimG, DeviceGemmTraits::kNumDimM,
+    DeviceGemmTraits::kNumDimN, DeviceGemmTraits::kNumDimK,
+    DeviceGemmTraits::kNumDimO, typename DeviceGemmTraits::QDataType,
     typename DeviceGemmTraits::KDataType, typename DeviceGemmTraits::VDataType,
     typename DeviceGemmTraits::OutDataType,
     typename DeviceGemmTraits::Acc0BiasDataType,
