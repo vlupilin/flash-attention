@@ -217,7 +217,8 @@ def rename_cpp_to_hip(cpp_files):
 
 def apply_patch():
     """apply patch for flash-attention"""
-    if parse(torch.__version__) < Version("2.1"):
+    torch_version = parse(torch.__version__)
+    if torch_version.major < 2 or torch_version.minor < 1:
         pytorch_dir = site.getsitepackages()[0]
         hipify_path = os.path.join(pytorch_dir, "torch/utils/hipify/hipify_python.py")
         patch_path = os.path.join(os.path.dirname(__file__), "hipify_python.patch")
