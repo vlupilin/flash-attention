@@ -151,17 +151,10 @@ public:
     auto gemm_ptr = std::make_unique<Gemm>();
     auto invoker = gemm_ptr->MakeInvoker();
 
-    auto argument =
-        params.h_kv != 1
-            ? gemm_ptr->MakeArgument(params.q_ptr, params.k_ptr, params.v_ptr,
-                                     params.out_ptr, params.max_seqlen_q,
-                                     params.max_seqlen_kv, params.d, params.d,
-                                     params.b, params.h_q, params.h_kv,
-                                     params.softmax_scale, true, true)
-            : gemm_ptr->MakeArgument(
-                  params.q_ptr, params.k_ptr, params.v_ptr, params.out_ptr,
-                  params.max_seqlen_q, params.max_seqlen_kv, params.d, params.d,
-                  params.b, params.h_q, params.softmax_scale, true, true);
+    auto argument = gemm_ptr->MakeArgument(
+        params.q_ptr, params.k_ptr, params.v_ptr, params.out_ptr,
+        params.max_seqlen_q, params.max_seqlen_kv, params.d, params.d, params.b,
+        params.h_q, params.h_kv, params.softmax_scale, true, true);
 
     if (!gemm_ptr->IsSupportedArgument(argument)) {
       throw std::runtime_error(gemm_ptr->GetTypeString() +
