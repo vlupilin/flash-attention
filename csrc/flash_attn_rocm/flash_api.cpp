@@ -161,6 +161,7 @@ std::vector<torch::Tensor> mha_fwd(
           out_padded, softmax_lse, z,        rng_state};
 }
 
+#if !defined(__WMMA__)
 std::vector<torch::Tensor> mha_varlen_fwd(
     const torch::Tensor
         &q, // total_q x num_heads_q x head_size, total_q := \sum_{i=0}^{b} s_i
@@ -342,7 +343,7 @@ std::vector<torch::Tensor> mha_varlen_fwd(
   return {out,        q_padded,    k_padded, v_padded,
           out_padded, softmax_lse, z,        rng_state};
 }
-#if !defined(__WMMA__)
+
 std::vector<torch::Tensor> mha_bwd(
     const torch::Tensor
         &dout, // batch_size x seqlen_q x num_heads_q, x head_size_og
@@ -844,8 +845,8 @@ std::vector<torch::Tensor> mha_varlen_bwd(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "FlashAttention";
   m.def("fwd", &mha_fwd, "Forward pass");
-  m.def("varlen_fwd", &mha_varlen_fwd, "Forward pass (variable length)");
 #if !defined(__WMMA__)
+  m.def("varlen_fwd", &mha_varlen_fwd, "Forward pass (variable length)");
   m.def("bwd", &mha_bwd, "Backward pass");
   m.def("varlen_bwd", &mha_varlen_bwd, "Backward pass (variable length)");
 #endif

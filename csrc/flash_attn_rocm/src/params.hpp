@@ -265,7 +265,6 @@ struct FlashBwdBatchedParams : public BatchedParams {
   std::vector<Index> dv_lengths;
   std::vector<Index> dv_strides;
 };
-#endif
 
 // Common Grouped Arguments
 struct GroupedParams : public BaseParams {
@@ -418,7 +417,6 @@ struct FlashFwdGroupedParams : public GroupedParams {
   }
 };
 
-#if !defined(__WMMA__)
 // Backward Grouped Arguments
 struct FlashBwdGroupedParams : public GroupedParams {
   explicit FlashBwdGroupedParams(
