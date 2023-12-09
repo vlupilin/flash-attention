@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from flash_attn.utils.benchmark import benchmark_forward
-from flash_attn import flash_attn_func
+from flash_attn import flash_attn_func, flash_attn_qkvpacked_func
 
 try:
     from triton.ops.flash_attention import attention as attention_triton
@@ -71,10 +71,10 @@ repeats = 30
 device = "cuda"
 dtype = torch.float16
 
-bs_seqlen_vals = [(4, 1024)]
+bs_seqlen_vals = [(32, 512), (16, 1024), (8, 2048), (4, 4096), (2, 8192), (1, 16384)]
 causal_vals = [False, True]
-headdim_vals = [32, 64]
-dim = 512
+headdim_vals = [64, 128]
+dim = 2048
 dropout_p = 0.0
 
 methods = (
@@ -91,17 +91,17 @@ for causal in causal_vals:
             config = (causal, headdim, batch_size, seqlen)
             nheads = dim // headdim
             nheads_kv = nheads // 4
-            # qkv = torch.randn(
-            #    batch_size, seqlen, 3, nheads, headdim, device=device, dtype=dtype
-            # )
+            qkv = torch.randn(
+                 batch_size, seqlen, 3, nheads, headdim, device=device, dtype=dtype
+            )
             q = torch.randn(
                  batch_size, seqlen, nheads, headdim, device=device, dtype=dtype
             )
             k = torch.randn(
-                 batch_size, seqlen, nheads_kv, headdim, device=device, dtype=dtype
+                 batch_size, seqlen, nheads, headdim, device=device, dtype=dtype
             )
             v = torch.randn(
-                 batch_size, seqlen, nheads_kv, headdim, device=device, dtype=dtype
+                 batch_size, seqlen, nheads, headdim, device=device, dtype=dtype
             )
 
             f = time_fwd(
