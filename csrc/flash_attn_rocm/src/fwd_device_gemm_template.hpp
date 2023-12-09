@@ -26,9 +26,9 @@
 #include "device_gemm_trait.hpp"
 
 namespace fwd_device_gemm {
-#if defined(__MFMA__)
 namespace device_op =
     ck::tensor_operation::device; // namespace alias for internal use
+#if defined(__MFMA__)
 // type alias for DeviceGroupedMultiheadAttentionForward_Xdl_CShuffle with
 // head_dim = 32
 template <typename DeviceGemmTraits>
@@ -481,7 +481,8 @@ using DeviceGemmBatchedHeadDim128 =
         8, // CShuffleBlockTransferScalarPerVector_NPerBlock
         1, // 4,
         DeviceGemmTraits::kMaskingSpec>;
-#elif defined(__WMMA__)
+
+#if defined(__WMMA__)
 namespace wmma {
 template <typename DeviceGemmTraits>
 using DeviceGemmBatchedMQA = device_op::DeviceMultiQueryAttentionForward_Wmma<
