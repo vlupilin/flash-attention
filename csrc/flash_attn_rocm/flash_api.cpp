@@ -342,7 +342,7 @@ std::vector<torch::Tensor> mha_varlen_fwd(
   return {out,        q_padded,    k_padded, v_padded,
           out_padded, softmax_lse, z,        rng_state};
 }
-
+#if !defined(__WMMA__)
 std::vector<torch::Tensor> mha_bwd(
     const torch::Tensor
         &dout, // batch_size x seqlen_q x num_heads_q, x head_size_og
@@ -839,6 +839,7 @@ std::vector<torch::Tensor> mha_varlen_bwd(
 
   return {dq, dk, dv, dsoftmax_vec[0]};
 }
+#endif
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "FlashAttention";
