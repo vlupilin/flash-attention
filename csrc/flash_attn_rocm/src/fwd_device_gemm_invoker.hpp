@@ -168,8 +168,7 @@ public:
                                " does not support this problem");
     }
     auto time_kernel = get_env_("FLASH_ATTENTION_INTERNAL_ENABLE_TIME_KERNEL");
-    auto avg_time =
-        invoker_ptr.Run(argument, StreamConfig{stream, time_kernel});
+    auto avg_time = invoker.Run(argument, StreamConfig{stream, time_kernel});
 
     if (time_kernel) {
       std::cout << "time elpase is " << avg_time << " ms" << std::endl;
