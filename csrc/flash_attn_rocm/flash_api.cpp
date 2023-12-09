@@ -845,6 +845,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "FlashAttention";
   m.def("fwd", &mha_fwd, "Forward pass");
   m.def("varlen_fwd", &mha_varlen_fwd, "Forward pass (variable length)");
+#if !defined(__WMMA__)
   m.def("bwd", &mha_bwd, "Backward pass");
   m.def("varlen_bwd", &mha_varlen_bwd, "Backward pass (variable length)");
+#endif
 }
