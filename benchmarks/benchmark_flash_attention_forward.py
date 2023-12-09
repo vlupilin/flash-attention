@@ -1,86 +1,194 @@
-from functools import partial
+import pickle
 import math
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
+from flash_attn.utils.benchmark import benchmark_forward
+from flash_attn import flash_attn_qkvpacked_func
 
-from einops import rearrange, repeat
+try:
+    from triton.ops.flash_attention import attention as attention_triton
+except ImportError:
+    attention_triton = None
 
-from flash_attn.utils.benchmark import benchmark_all, benchmark_forward, benchmark_backward, benchmark_combined
-from flash_attn.bert_padding import unpad_input, pad_input
-from flash_attn.flash_attn_interface import flash_attn_unpadded_qkvpacked_func
+try:
+    import xformers.ops as xops
+except ImportError:
+    xops = None
 
 
-def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
+def flops(batch, seqlen, headdim, nheads, causal):
+    f = 4 * batch * seqlen**2 * nheads * headdim // (2 if causal else 1)
+    return f
+
+
+def efficiency(flop, time):
+    return (flop / time / 10**12) if not math.isnan(time) else 0.0
+
+
+def attention_pytorch(qkv, dropout_p=0.0, causal=True):
     """
     Arguments:
         qkv: (batch_size, seqlen, 3, nheads, head_dim)
-        attn_mask: (batch_size, seqlen)
         dropout_p: float
     Output:
         output: (batch_size, seqlen, nheads, head_dim)
-        attention: softmax after dropout
     """
-    q, k, v = (qkv.float() if upcast else qkv).unbind(dim=2)
-    seqlen = qkv.shape[1]
-    d = qkv.shape[-1]
-    scores = torch.einsum('bthd,bshd->bhts', q, k / math.sqrt(d))
-    scores.masked_fill_(rearrange(~attn_mask, 'b s -> b 1 1 s'), float('-inf'))
+    batch_size, seqlen, _, nheads, d = qkv.shape
+    q, k, v = qkv.unbind(dim=2)
+    q = rearrange(q, "b t h d -> (b h) t d")
+    k = rearrange(k, "b s h d -> (b h) d s")
+    softmax_scale = 1.0 / math.sqrt(d)
+    # Preallocate attn_weights for `baddbmm`
+    scores = torch.empty(
+        batch_size * nheads, seqlen, seqlen, dtype=qkv.dtype, device=qkv.device
+    )
+    scores = rearrange(
+        torch.baddbmm(scores, q, k, beta=0, alpha=softmax_scale),
+        "(b h) t s -> b h t s",
+        h=nheads,
+    )
     if causal:
-        causal_mask = torch.triu(torch.ones(seqlen, seqlen, dtype=torch.bool, device=qkv.device), 1)
-        scores.masked_fill_(causal_mask, float('-inf'))
+        # "triu_tril_cuda_template" not implemented for 'BFloat16'
+        # So we have to construct the mask in float
+        causal_mask = torch.triu(
+            torch.full((seqlen, seqlen), -10000.0, device=scores.device), 1
+        )
+        # TD [2022-09-30]: Adding is faster than masked_fill_ (idk why, just better kernel I guess)
+        scores = scores + causal_mask.to(dtype=scores.dtype)
     attention = torch.softmax(scores, dim=-1)
     attention_drop = F.dropout(attention, dropout_p)
-    output = torch.einsum('bhts,bshd->bthd', attention_drop , v)
-    # return output.to(dtype=qkv.dtype), attention.to(dtype=qkv.dtype)
+    output = torch.einsum("bhts,bshd->bthd", attention_drop, v)
     return output.to(dtype=qkv.dtype)
 
 
-torch.manual_seed(0)
-repeats = 250
-batch_size = [1,32,64,128]
-nheads = 16
-seqlen = [1024,2048,4096]
-n = 1024
-d = n // nheads
-dropout_p = 0.1
-causal = False
+def time_fwd(func, *args, **kwargs):
+    time_f = benchmark_forward(func, *args, **kwargs)
+    return time_f[1].mean
+
+
+repeats = 30
+device = "cuda"
 dtype = torch.float16
-device = 'cuda'
 
-result_summary = []
+bs_seqlen_vals = [(32, 512), (16, 1024), (8, 2048), (4, 4096), (2, 8192), (1, 16384)]
+causal_vals = [False, True]
+headdim_vals = [32, 64]
+dim = 2048
+dropout_p = 0.0
 
-for bs in batch_size:
-    for sq in seqlen:
-        if (bs > 32 and sq > 2048) or (bs > 64 and sq > 1024):
-            continue
-        x = torch.randn(bs, sq, n, device='cuda', dtype=dtype, requires_grad=True)
-        Wqkv = torch.nn.Linear(nheads * d, 3 * nheads * d, device=device, dtype=dtype)
+methods = (
+    ["Flash2", "Pytorch"]
+    + (["Triton"] if attention_triton is not None else [])
+    + (["xformers"] if xops is not None else [])
+)
 
-        lengths = torch.randint(sq - 20, sq, (bs, 1), device='cuda')
-        attention_mask_bool = repeat(torch.arange(sq, device='cuda'), 's -> b s', b=bs) < lengths
-        attention_mask = torch.zeros(bs, sq, device='cuda', dtype=dtype)
-        attention_mask[~attention_mask_bool] = -10000.0
-        attention_mask = rearrange(attention_mask, 'b s -> b 1 1 s')
+time_f = {}
+speed_f = {}
+for causal in causal_vals:
+    for headdim in headdim_vals:
+        for batch_size, seqlen in bs_seqlen_vals:
+            config = (causal, headdim, batch_size, seqlen)
+            nheads = dim // headdim
+            qkv = torch.randn(
+                batch_size, seqlen, 3, nheads, headdim, device=device, dtype=dtype
+            )
+            f = time_fwd(
+                flash_attn_qkvpacked_func,
+                qkv,
+                dropout_p,
+                causal=causal,
+                repeats=repeats,
+                verbose=False,
+            )
+            time_f[config, "Flash2"] = f
 
-        x_unpad, indices, cu_sqs, max_sq_in_batch = unpad_input(x, attention_mask_bool)
-        qkv_unpad = rearrange(Wqkv(x_unpad), 'nnz (t h d) -> nnz t h d', t=3,
-                              h=nheads).detach().requires_grad_()
-        qkv = rearrange(Wqkv(x), 'b s (t h d) -> b s t h d', t=3, h=nheads).detach().requires_grad_()
+            try:
+                qkv = qkv.detach().requires_grad_(False)
+                f = time_fwd(
+                    attention_pytorch,
+                    qkv,
+                    dropout_p,
+                    causal=causal,
+                    repeats=repeats,
+                    verbose=False,
+                )
+            except:  # Skip if OOM
+                f = float("nan")
+            time_f[config, "Pytorch"] = f
 
-        print(f'Batch size: {bs}, Sequence Length: {sq}')
-        
-        fn = lambda qkv_unpad: flash_attn_unpadded_qkvpacked_func(
-            qkv_unpad, cu_sqs, max_sq_in_batch, dropout_p, causal=causal
-        )
-        fa_time,fa_measurement = benchmark_forward(fn, qkv_unpad, repeats=repeats, desc='FlashAttention')
-        fn = lambda qkv: attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
-        pyt_time,pyt_measurement = benchmark_forward(fn, qkv, repeats=repeats, desc='PyTorch Standard Attention')
+            if attention_triton is not None:
+                q, k, v = [
+                    torch.randn(
+                        batch_size,
+                        nheads,
+                        seqlen,
+                        headdim,
+                        device=device,
+                        dtype=dtype,
+                        requires_grad=False,
+                    )
+                    for _ in range(3)
+                ]
+                # Try both values of sequence_parallel and pick the faster one
+                try:
+                    f = time_fwd(
+                        attention_triton,
+                        q,
+                        k,
+                        v,
+                        causal,
+                        headdim ** (-0.5),
+                        False,
+                        repeats=repeats,
+                        verbose=False,
+                    )
+                except:
+                    f = float("nan")
+                try:
+                    _ = time_fwd(
+                        attention_triton,
+                        q,
+                        k,
+                        v,
+                        causal,
+                        headdim ** (-0.5),
+                        True,
+                        repeats=repeats,
+                        verbose=False,
+                    )
+                except:
+                    time_f[config, "Triton"] = f
 
-        relative_perf = ((pyt_measurement.mean-fa_measurement.mean)/pyt_measurement.mean) * 100
+            if xops is not None:
+                q, k, v = [
+                    torch.randn(
+                        batch_size,
+                        seqlen,
+                        nheads,
+                        headdim,
+                        device=device,
+                        dtype=dtype,
+                        requires_grad=False,
+                    )
+                    for _ in range(3)
+                ]
+                f = time_fwd(
+                    xops.memory_efficient_attention,
+                    q,
+                    k,
+                    v,
+                    attn_bias=xops.LowerTriangularMask() if causal else None,
+                    op=(xops.fmha.cutlass.FwOp),
+                )
+                time_f[config, "xformers"] = f
 
-        result_summary.append([bs,sq,pyt_measurement.mean,fa_measurement.mean,relative_perf])
-        
-        print(f'Flash Attention Speedup: {relative_perf}\n')
-
-print(f'batch size, sequence length, PyTorch Standard Attention, FlashAttention, speedup relative to PyTorch\n {result_summary}')
+            print(
+                f"### causal={causal}, headdim={headdim}, batch_size={batch_size}, seqlen={seqlen} ###"
+            )
+            for method in methods:
+                speed_f[config, method] = efficiency(
+                    flops(batch_size, seqlen, headdim, nheads, causal),
+                    time_f[config, method],
+                )
+                print(f"{method} fwd: {speed_f[config, method]:.2f} TFLOPs/s")
