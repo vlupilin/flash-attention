@@ -21,6 +21,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#if defined(__MFMA__)
 #include "flash_runner.hpp"
 
 template <>
@@ -48,3 +49,4 @@ void FlashRunner::run_<FlashFwdGroupedParams, 32, device_gemm_trait::Float16,
                                                                   stream);
   });
 } // FlashRunner::run_()
+#endif

@@ -21,32 +21,26 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 // EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#if defined(__MFMA__)
+#if defined(__WMMA__)
 #include "flash_runner.hpp"
 
 template <>
-void FlashRunner::run_<FlashBwdGroupedParams, 32, device_gemm_trait::BFloat16,
-                       true, true>(FlashBwdGroupedParams &params,
-                                   hipStream_t &stream) {
-  BOOL_SWITCH(BaseParams::kIsDeterministic, kIsDeterministic, [&] {
-    this->template run_bwd_<
-        FlashBwdGroupedParams, bwd_device_gemm::DeviceGemmGroupedHeadDim32,
-        device_gemm_trait::BFloat16, device_gemm_trait::kGemmSpecPadding,
-        device_gemm_trait::kMaskingSpecCausal, kIsDeterministic>(params,
-                                                                 stream);
-  });
+void FlashRunner::run_<FlashFwdBatchedParams, false, device_gemm_trait::Float16,
+                       true, false>(FlashFwdBatchedParams &params,
+                                    hipStream_t &stream) {
+  this->template run_fwd_<
+      FlashFwdBatchedParams, fwd_device_gemm::wmma::DeviceGemmBatchedGQA,
+      device_gemm_trait::Float16, device_gemm_trait::kGemmSpecPadding,
+      device_gemm_trait::kMaskingSpecDefault>(params, stream);
 } // FlashRunner::run_()
 
 template <>
-void FlashRunner::run_<FlashBwdGroupedParams, 32, device_gemm_trait::BFloat16,
-                       false, true>(FlashBwdGroupedParams &params,
-                                    hipStream_t &stream) {
-  BOOL_SWITCH(BaseParams::kIsDeterministic, kIsDeterministic, [&] {
-    this->template run_bwd_<
-        FlashBwdGroupedParams, bwd_device_gemm::DeviceGemmGroupedHeadDim32,
-        device_gemm_trait::BFloat16, device_gemm_trait::kGemmSpecDefault,
-        device_gemm_trait::kMaskingSpecCausal, kIsDeterministic>(params,
-                                                                 stream);
-  });
+void FlashRunner::run_<FlashFwdBatchedParams, false, device_gemm_trait::Float16,
+                       false, false>(FlashFwdBatchedParams &params,
+                                     hipStream_t &stream) {
+  this->template run_fwd_<
+      FlashFwdBatchedParams, fwd_device_gemm::wmma::DeviceGemmBatchedGQA,
+      device_gemm_trait::Float16, device_gemm_trait::kGemmSpecDefault,
+      device_gemm_trait::kMaskingSpecDefault>(params, stream);
 } // FlashRunner::run_()
 #endif
