@@ -67,7 +67,7 @@ static constexpr auto kMaskingSpecCausal =
     MaskingSpec::MaskUpperTriangleFromTopLeft;
 
 template <typename InputDataType_, GemmSpec kGemmSpec_,
-          MaskingSpec kMaskingSpec_, bool kIsDeterministic_>
+          MaskingSpec kMaskingSpec_, bool kIsDeterministic_ = kNonDeterministic>
 struct Forward {
   using QDataType = InputDataType_;
   using KDataType = InputDataType_;
@@ -95,10 +95,10 @@ struct Forward {
 
   static constexpr auto kGemmSpec = kGemmSpec_;
 
-  static constexpr auto kTensorSpecA = TensorSpec::Default;
-  static constexpr auto kTensorSpecB0 = TensorSpec::Default;
-  static constexpr auto kTensorSpecB1 = TensorSpec::Default;
-  static constexpr auto kTensorSpecC = TensorSpec::Default;
+  static constexpr auto kTensorSpecQ = TensorSpec::Default;
+  static constexpr auto kTensorSpecK = TensorSpec::Default;
+  static constexpr auto kTensorSpecV = TensorSpec::Default;
+  static constexpr auto kTensorSpecOut = TensorSpec::Default;
 
   static constexpr auto kMaskingSpec = kMaskingSpec_;
   static constexpr bool kIsDeterministic = kIsDeterministic_;
@@ -107,7 +107,7 @@ struct Forward {
 template <
     typename InputDataType_, typename OutputDataType_, typename GemmDataType_,
     Index kCShuffleBlockTransferScalarPerVectorNPerBlock_, GemmSpec kGemmSpec_,
-    MaskingSpec kMaskingSpec_, bool kIsDeterministic_>
+    MaskingSpec kMaskingSpec_, bool kIsDeterministic_ = kNonDeterministic>
 struct Backward {
   using InputDataType = InputDataType_;
   using OutputDataType = OutputDataType_;
@@ -140,7 +140,7 @@ struct Backward {
   static constexpr auto kTensorSpecQ = TensorSpec::Default;
   static constexpr auto kTensorSpecK = TensorSpec::Default;
   static constexpr auto kTensorSpecV = TensorSpec::Default;
-  static constexpr auto kTensorSpecY = TensorSpec::Default;
+  static constexpr auto kTensorSpecOut = TensorSpec::Default;
 
   static constexpr auto kMaskingSpec = kMaskingSpec_;
   static constexpr bool kIsDeterministic = kIsDeterministic_;
