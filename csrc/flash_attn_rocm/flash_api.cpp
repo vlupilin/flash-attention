@@ -81,6 +81,11 @@ std::vector<torch::Tensor> mha_fwd(
     q_padded = q;
     k_padded = k;
     v_padded = v;
+#if defined(__WMMA__)
+    q_padded = q.contiguous();
+    k_padded = k.contiguous();
+    v_padded = v.contiguous();
+#endif
   }
 
   torch::Tensor out;
@@ -842,6 +847,18 @@ std::vector<torch::Tensor> mha_varlen_bwd(
 }
 #endif
 
+void dummy_varlen_fwd() {
+  throw std::runtime_error("Function 'varlen_fwd' is not available when __WMMA__ is defined.");
+}
+
+void dummy_bwd() {
+  throw std::runtime_error("Function 'bwd' is not available when __WMMA__ is defined.");
+}
+
+void dummy_varlen_bwd() {
+  throw std::runtime_error("Function 'varlen_bwd' is not available when __WMMA__ is defined.");
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.doc() = "FlashAttention";
   m.def("fwd", &mha_fwd, "Forward pass");
@@ -849,5 +866,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("varlen_fwd", &mha_varlen_fwd, "Forward pass (variable length)");
   m.def("bwd", &mha_bwd, "Backward pass");
   m.def("varlen_bwd", &mha_varlen_bwd, "Backward pass (variable length)");
+#else
+  m.def("varlen_fwd", &dummy_varlen_fwd, "Forware pass (variable length, dummy)");
+  m.def("bwd", &dummy_bwd, "Backward pass (dummy)");
+  m.def("varlen_bwd", &dummy_varlen_bwd, "Backward pass (variable length, dummy)");
 #endif
 }
