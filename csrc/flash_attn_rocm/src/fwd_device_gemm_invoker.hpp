@@ -27,6 +27,7 @@
 #include "params.hpp"
 
 namespace fwd_device_gemm {
+#if defined(__MFMA__)
 template <template <typename> typename DeviceGemmTemplate,
           typename DeviceGemmTraits>
 class DeviceGemmInvoker {
@@ -137,7 +138,7 @@ public:
     }
   }
 };
-
+#elif defined(__WMMA__)
 namespace wmma {
 template <template <typename> typename DeviceGemmTemplate,
           typename DeviceGemmTraits>
@@ -169,4 +170,6 @@ public:
   }
 };
 } // namespace wmma
+#endif
+// TODO: add default implementation or error handling
 } // namespace fwd_device_gemm

@@ -25,6 +25,7 @@
 
 #include "params.hpp"
 
+#if defined(__MFMA__)
 // grouped
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_mha_fwd_xdl_cshuffle_v2.hpp"
 
@@ -36,10 +37,13 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_batched_mha_bwd_xdl_cshuffle_qloop_light_v1.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_mha_bwd_xdl_cshuffle_qloop_light_v2.hpp"
+#endif
 
+#if defined(__WMMA__)
 // wmma forward gemm
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_query_attention_forward_wmma.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_multi_query_attention_forward_wmma.hpp"
+#endif
 
 namespace device_gemm_trait {
 using Int32 = int;
@@ -104,6 +108,7 @@ struct Forward {
   static constexpr bool kIsDeterministic = kIsDeterministic_;
 }; // device gemm traits forward
 
+#if !defined(__WMMA__)
 template <
     typename InputDataType_, typename OutputDataType_, typename GemmDataType_,
     Index kCShuffleBlockTransferScalarPerVectorNPerBlock_, GemmSpec kGemmSpec_,
@@ -145,4 +150,5 @@ struct Backward {
   static constexpr auto kMaskingSpec = kMaskingSpec_;
   static constexpr bool kIsDeterministic = kIsDeterministic_;
 }; // device gemm traits backward
+#endif
 } // namespace device_gemm_trait

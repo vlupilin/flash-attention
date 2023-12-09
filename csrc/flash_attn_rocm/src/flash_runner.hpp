@@ -23,7 +23,9 @@
 
 #pragma once
 
+#if !defined(__WMMA__)
 #include "bwd_device_gemm_invoker.hpp"
+#endif
 #include "fwd_device_gemm_invoker.hpp"
 
 #include "static_switch.hpp"

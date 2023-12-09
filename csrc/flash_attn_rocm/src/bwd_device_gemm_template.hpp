@@ -23,6 +23,7 @@
 
 #pragma once
 
+#if !defined(__WMMA__)
 #include "device_gemm_trait.hpp"
 
 namespace bwd_device_gemm {
@@ -360,3 +361,4 @@ using DeviceGemmBatchedHeadDim128 = device_op::
         DeviceGemmTraits::kMaskingSpec, // MaskingSpec
         DeviceGemmTraits::kIsDeterministic>;
 } // namespace bwd_device_gemm
+#endif
