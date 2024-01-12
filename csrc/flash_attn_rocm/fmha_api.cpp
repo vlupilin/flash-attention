@@ -11,7 +11,9 @@
 
 #include "flash_fwd_runner_gfx90a.h"
 #include "flash_bwd_runner_gfx90a.h"
-
+#include<fstream>
+#include<iostream>
+#include<string>
 #include "static_switch.h"
 
 #define CHECK_SHAPE(x, ...) TORCH_CHECK(x.sizes() == torch::IntArrayRef({__VA_ARGS__}), #x " must have shape (" #__VA_ARGS__ ")")
