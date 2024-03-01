@@ -209,7 +209,7 @@ setup(
         "License :: OSI Approved :: BSD License",
         "Operating System :: Unix",
     ],
-    ext_modules=ext_modules,
+    # ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension} if ext_modules else {},
     python_requires=">=3.7",
     install_requires=[

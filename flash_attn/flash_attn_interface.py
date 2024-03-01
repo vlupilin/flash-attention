@@ -91,7 +91,8 @@ def _fwd_kernel(
     qk_scale = sm_scale * 1.44269504
     # load q: it will stay in SRAM throughout
     q = tl.load(Q_block_ptr)
-    q = (q * qk_scale).to(tl.float16)
+    output_dtype = q.dtype
+    q = (q * qk_scale).to(output_dtype)
     # loop over k, v and update accumulator
     lo = 0
     hi = P_SEQ + (start_m + 1) * BLOCK_M if IS_CAUSAL else N_CTX + P_SEQ
@@ -111,7 +112,7 @@ def _fwd_kernel(
         # -- scale and update acc --
         acc_scale = l_i * 0 + alpha  # workaround some compiler bug
         acc *= acc_scale[:, None]
-        acc += tl.dot(p.to(tl.float16), v)
+        acc += tl.dot(p.to(output_dtype), v)
         # -- update m_i and l_i --
         l_i = l_i * alpha + tl.sum(p, 1)
         m_i = m_i_new
@@ -131,7 +132,7 @@ def _fwd_kernel(
         block_shape=(BLOCK_M, BLOCK_DMODEL),
         order=(1, 0)
     )
-    tl.store(O_block_ptr, acc.to(tl.float16))
+    tl.store(O_block_ptr, acc.to(output_dtype))
 
 @triton.jit
 def _bwd_preprocess(
@@ -303,7 +304,8 @@ def _bwd_kernel_dk_dv(
     qk_scale = sm_scale * 1.44269504
     # load k and v: they will stay in SRAM throughout
     k = tl.load(K_block_ptr)
-    k = (k * qk_scale).to(tl.float16)
+    output_dtype = k.dtype
+    k = (k * qk_scale).to(output_dtype)
     v = tl.load(V_block_ptr)
     dv = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
     dk = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)
@@ -355,8 +357,8 @@ def _bwd_kernel_dk_dv(
     #off_dv = off_hz * stride_vh + offs_m[:, None] * stride_vk + offs_n[None, :] * stride_vn
     #dk_ptrs = DK + off_dk
     #dv_ptrs = DV + off_dv
-    tl.store(DK_block_ptr, (dk * sm_scale).to(tl.float16))
-    tl.store(DV_block_ptr, dv.to(tl.float16))
+    tl.store(DK_block_ptr, (dk * sm_scale).to(output_dtype))
+    tl.store(DV_block_ptr, dv.to(output_dtype))
 
 @triton.jit
 def _bwd_kernel_dq(
@@ -425,7 +427,8 @@ def _bwd_kernel_dq(
     qk_scale = sm_scale * 1.44269504
     # load q and do: they will stay in SRAM throughout
     q = tl.load(Q_block_ptr)
-    q = (q * qk_scale).to(tl.float16)
+    output_dtype = q.dtype
+    q = (q * qk_scale).to(output_dtype)
     do = tl.load(DO_block_ptr)
     Di = tl.load(D_ptrs + offs_m)
     l_i = tl.load(l_ptrs + offs_m)
@@ -462,7 +465,7 @@ def _bwd_kernel_dq(
     )
     #off_dq = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_n[None, :] * stride_qk
     #dq_ptrs DQDblock_Q +off_dq
-    tl.store(DQ_block_ptr, (dq * sm_scale).to(tl.float16))
+    tl.store(DQ_block_ptr, (dq * sm_scale).to(output_dtype))
 
 empty = torch.empty(128, device="cuda")
 
