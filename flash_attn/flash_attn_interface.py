@@ -9,7 +9,8 @@ if benchmark_csv:
     import csv
     import threading
     csv_writer_lock = threading.Lock()
-    csvfile = open(benchmark_csv, 'w', newline='')
+    os.makedirs(benchmark_csv, exist_ok=True)
+    csvfile = open(f"{benchmark_csv}/{os.getpid()}.csv", 'w', newline='')
     writer = csv.writer(csvfile, delimiter=',')
     with csv_writer_lock:
         writer.writerow(["dtype", "batch size", "seqlen", "nheads", "embedding dim", "causal", "dropout"])
@@ -73,7 +74,7 @@ def _flash_attn_varlen_forward(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q
 
     if benchmark_csv:
         with csv_writer_lock:
-            writer.writerow([q.dtype, ','.join(cu_seqlens_q), *q.shape, str(causal).upper(), dropout_p])
+            writer.writerow([q.dtype, ','.join(cu_seqlens_q.cpu().numpy().astype(str)), *q.shape, str(causal).upper(), dropout_p])
         
     return out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state
 
