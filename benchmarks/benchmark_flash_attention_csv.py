@@ -21,7 +21,7 @@ def benchmark_row(row):
         dtype = torch.bfloat16
     else:
         raise ValueError("Wrong data type")
-    batch_size = int(row["batch size"])
+    batch_size = row["batch size"]
     nheads = int(row["nheads"])
     d = int(row["embedding dim"])
     seqlen = int(row["seqlen"])
@@ -31,17 +31,18 @@ def benchmark_row(row):
     torch.manual_seed(0)
     
     if isinstance(batch_size, str):
-        print(dtype, seqlen, nheads, d, causal, dropout_p)
+        print(dtype, batch_size, seqlen, nheads, d, causal, dropout_p)
         cu_seqlens = [int(b) for b in batch_size.split(',')]
         max_seqlen = 0
         for cu_seq1, cu_seq2 in zip(cu_seqlens[1:], cu_seqlens[:-1]):
             max_seqlen = max(max_seqlen, cu_seq1 - cu_seq2)
         qkv = torch.randn(seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True)
         fn = lambda qkv: flash_attn_varlen_qkvpacked_func(
-            qkv, cu_seqlens, max_seqlen, dropout_p, causal=causal, softmax_scale=1/math.sqrt(d)
+            qkv, torch.tensor(cu_seqlens, dtype=torch.int32).cuda(), max_seqlen, dropout_p, causal=causal, softmax_scale=1/math.sqrt(d)
         )
     else:
         print(dtype, batch_size, seqlen, nheads, d, causal, dropout_p)
+        batch_size = int(batch_size)
         qkv = torch.randn(batch_size, seqlen, 3, nheads, d, device=device, dtype=dtype, requires_grad=True)
         fn = lambda qkv: flash_attn_qkvpacked_func(
             qkv, dropout_p, causal=causal, softmax_scale=1/math.sqrt(d)
@@ -52,7 +53,8 @@ def benchmark_row(row):
     
     fwd_time = m1.mean
     bwd_time = m2.mean
-
+    if isinstance(batch_size, str):
+        batch_size = 1
     fwd_tflops = efficiency(flops(batch_size, seqlen, d, nheads, causal, mode="fwd"), fwd_time)
     bwd_tflops = efficiency(flops(batch_size, seqlen, d, nheads, causal, mode="bwd"), bwd_time)
     fwd_bwd_tflops = efficiency(flops(batch_size, seqlen, d, nheads, causal, mode="fwd_bwd"), fwd_time+bwd_time)
