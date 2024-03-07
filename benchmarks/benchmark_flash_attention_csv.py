@@ -30,7 +30,7 @@ def benchmark_row(row):
 
     torch.manual_seed(0)
     
-    if isinstance(batch_size, str):
+    if not batch_size.isdigit():
         print(dtype, batch_size, seqlen, nheads, d, causal, dropout_p)
         cu_seqlens = [int(b) for b in batch_size.split(',')]
         max_seqlen = 0
