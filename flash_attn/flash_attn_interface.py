@@ -1,8 +1,14 @@
 import torch
-import torch.nn as nn
-
 import flash_attn_2_cuda as flash_attn_cuda
-from einops import rearrange
+import os
+
+
+benchmark_csv = os.environ.get('FLASH_ATTENTION_BENCHMARK_CSV', None)
+if benchmark_csv:
+    import csv
+    csvfile = open(benchmark_csv, 'w', newline='')
+    writer = csv.writer(csvfile, delimiter=',')
+    writer.writerow(["dtype", "batch size", "seqlen", "nheads", "embedding dim", "causal", "dropout"])
 
 
 def _get_block_size(device, head_dim, is_dropout, is_causal):
@@ -42,6 +48,10 @@ def _flash_attn_forward(q, k, v, dropout_p, softmax_scale, causal, return_softma
     out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state = flash_attn_cuda.fwd(
         q, k, v, None, dropout_p, softmax_scale, causal, return_softmax, None
     )
+
+    if benchmark_csv:
+        writer.writerow([q.dtype, *q.shape, str(causal).upper(), dropout_p])
+
     return out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state
 
 
@@ -53,8 +63,10 @@ def _flash_attn_varlen_forward(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q
         q, k, v, None, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, dropout_p,
         softmax_scale, False, causal, return_softmax, None
     )
-    # if out.isnan().any() or softmax_lse.isnan().any():
-    #     breakpoint()
+
+    if benchmark_csv:
+        writer.writerow([q.dtype, ','.join(cu_seqlens_q), *q.shape, str(causal).upper(), dropout_p])
+        
     return out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state
 
 
