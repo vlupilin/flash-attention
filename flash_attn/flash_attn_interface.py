@@ -4,12 +4,18 @@ import os
 
 
 benchmark_csv = os.environ.get('FLASH_ATTENTION_BENCHMARK_CSV', None)
+csvfile = None
 if benchmark_csv:
     import csv
+    import threading
+    csv_writer_lock = threading.Lock()
     csvfile = open(benchmark_csv, 'w', newline='')
     writer = csv.writer(csvfile, delimiter=',')
-    writer.writerow(["dtype", "batch size", "seqlen", "nheads", "embedding dim", "causal", "dropout"])
-
+    with csv_writer_lock:
+        writer.writerow(["dtype", "batch size", "seqlen", "nheads", "embedding dim", "causal", "dropout"])
+elif csvfile is not None:
+    csvfile.close()
+    csvfile = None
 
 def _get_block_size(device, head_dim, is_dropout, is_causal):
     # This should match the block sizes in the CUDA kernel
@@ -50,7 +56,8 @@ def _flash_attn_forward(q, k, v, dropout_p, softmax_scale, causal, return_softma
     )
 
     if benchmark_csv:
-        writer.writerow([q.dtype, *q.shape, str(causal).upper(), dropout_p])
+        with csv_writer_lock:
+            writer.writerow([q.dtype, *q.shape, str(causal).upper(), dropout_p])
 
     return out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state
 
@@ -65,7 +72,8 @@ def _flash_attn_varlen_forward(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q
     )
 
     if benchmark_csv:
-        writer.writerow([q.dtype, ','.join(cu_seqlens_q), *q.shape, str(causal).upper(), dropout_p])
+        with csv_writer_lock:
+            writer.writerow([q.dtype, ','.join(cu_seqlens_q), *q.shape, str(causal).upper(), dropout_p])
         
     return out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state
 
