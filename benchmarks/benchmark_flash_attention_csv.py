@@ -82,11 +82,14 @@ if __name__ == "__main__":
                         default='csv',
                         choices=['csv', 'xls'],
                         help="Export file format")
-    
     parser.add_argument("--input_csv",
                     type=str,
                     required=True,
                     help="Input csv path")
+    parser.add_argument("--output_csv",
+                    type=str,
+                    required=True,
+                    help="Output csv path")
     
     args = parser.parse_args()
 
@@ -98,9 +101,7 @@ if __name__ == "__main__":
     datetime = date.today()
     labels = ["dtype", "batch size", "seqlen", "nheads", "embedding dim", "causal", "dropout", "fwd(ms)", "bwd(ms)", "fwd(tflops)", "bwd(tflops)", "fwd+bwd(tflops)"]
     device = 'cuda'
-    path = f"./logs/{str(datetime)}/{fa_commit}/{ck_commit}"
-    if not os.path.exists(path):
-        os.makedirs(path)
+    
     repeats = args.repeats
     with open(args.input_csv, newline='') as input_csv:
         csvreader = csv.DictReader(input_csv)
@@ -119,9 +120,9 @@ if __name__ == "__main__":
                     worksheet.write(i, j, str(value))
                 i += 1
 
-            workbook.save(f'{path}/performance.xls')
+            workbook.save(args.output_csv)
         else:
-            with open(f'{path}/performance.csv', 'w', newline='') as output_csv:
+            with open(args.output_csv, 'w', newline='') as output_csv:
                 output_csv = csv.writer(output_csv, delimiter=',')
                 output_csv.writerow(labels)
                 output_csv.writerows([benchmark_row(row) for row in csvreader])
