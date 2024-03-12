@@ -224,7 +224,7 @@ def validate_and_update_archs(archs):
 def build_for_rocm():
     """build for ROCm platform"""
     #archs = os.getenv("GPU_ARCHS", "native").split(";")
-    archs = os.getenv("GPU_ARCHS")
+    archs = os.getenv("GPU_ARCHS").split(";")
     print("{INFO} archs", archs)
     validate_and_update_archs(archs)
     cc_flag = [f"--offload-arch={arch}" for arch in archs]
