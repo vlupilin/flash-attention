@@ -125,6 +125,6 @@ for causal in causal_vals:
 
                 i = i+2
 
-
+work_book.save('fla_perf_308.xls')
 # with open('flash2_attn_time.plk', 'wb') as fp:
 #     pickle.dump((speed_f, speed_b, speed_f_b), fp, protocol=pickle.HIGHEST_PROTOCOL)
