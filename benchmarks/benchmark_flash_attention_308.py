@@ -83,7 +83,6 @@ for causal in causal_vals:
             time_f[config, "Flash2"] = f
             time_b[config, "Flash2"] = b
 
-            print(f"### causal={causal}, headdim={headdim}, batch_size={batch_size}, seqlen={seqlen} ###")
             for method in methods:
                 time_f_b[config, method] = time_f[config, method] + time_b[config, method]
                 speed_f[config, method] = efficiency(
@@ -97,11 +96,6 @@ for causal in causal_vals:
                 speed_f_b[config, method] = efficiency(
                     flops(batch_size, seqlen, headdim, nheads, causal, mode="fwd_bwd"),
                     time_f_b[config, method]
-                )
-                print(
-                    f"{method} fwd: {speed_f[config, method]:.2f} TFLOPs/s, "
-                    f"bwd: {speed_b[config, method]:.2f} TFLOPs/s, "
-                    f"fwd + bwd: {speed_f_b[config, method]:.2f} TFLOPs/s"
                 )
 
                 sheet_data.write(i, 0, batch_size)
@@ -122,6 +116,21 @@ for causal in causal_vals:
 
                 i = i+2
 
-work_book.save('fla_perf_308.xls')
+work_book.save('fla_perf_308.xlxs')
+
+for causal in causal_vals:
+    for headdim in headdim_vals:
+        for batch_size, seqlen in bs_seqlen_vals:
+            config = (causal, headdim, batch_size, seqlen)
+            nheads = dim // headdim
+            print(f"### causal={causal}, headdim={headdim}, batch_size={batch_size}, seqlen={seqlen} ###")
+            for method in methods:
+                print(
+                    f"{method} fwd: {speed_f[config, method]:.2f} TFLOPs/s, "
+                    f"bwd: {speed_b[config, method]:.2f} TFLOPs/s, "
+                    f"fwd + bwd: {speed_f_b[config, method]:.2f} TFLOPs/s"
+                )
+
+
 # with open('flash2_attn_time.plk', 'wb') as fp:
 #     pickle.dump((speed_f, speed_b, speed_f_b), fp, protocol=pickle.HIGHEST_PROTOCOL)
