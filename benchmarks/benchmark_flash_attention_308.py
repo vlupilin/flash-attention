@@ -83,9 +83,6 @@ for causal in causal_vals:
             time_f[config, "Flash2"] = f
             time_b[config, "Flash2"] = b
 
-            work_book = xlwt.Workbook(encoding='utf-8')
-            sheet_data = work_book.add_sheet('fla')
-
             print(f"### causal={causal}, headdim={headdim}, batch_size={batch_size}, seqlen={seqlen} ###")
             for method in methods:
                 time_f_b[config, method] = time_f[config, method] + time_b[config, method]
