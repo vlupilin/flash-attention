@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import xlwt
+
 from einops import rearrange, repeat
 
 from flash_attn.utils.benchmark import benchmark_all, benchmark_forward, benchmark_backward
@@ -56,6 +58,18 @@ time_f_b = {}
 speed_f = {}
 speed_b = {}
 speed_f_b = {}
+
+work_book = xlwt.Workbook(encoding='utf-8')
+sheet_data = work_book.add_sheet('fla')
+sheet_data.write(0, 0, "batch_size")
+sheet_data.write(0, 1, "nhead")
+sheet_data.write(0, 2, "seqlen")
+sheet_data.write(0, 3, "head_dim")
+sheet_data.write(0, 4, "mode")
+sheet_data.write(0, 5, "causal")
+sheet_data.write(0, 6, "TFLOPS")
+
+i=1
 for causal in causal_vals:
     for headdim in headdim_vals:
         for batch_size, seqlen in bs_seqlen_vals:
@@ -68,6 +82,9 @@ for causal in causal_vals:
             )
             time_f[config, "Flash2"] = f
             time_b[config, "Flash2"] = b
+
+            work_book = xlwt.Workbook(encoding='utf-8')
+            sheet_data = work_book.add_sheet('fla')
 
             print(f"### causal={causal}, headdim={headdim}, batch_size={batch_size}, seqlen={seqlen} ###")
             for method in methods:
@@ -89,6 +106,24 @@ for causal in causal_vals:
                     f"bwd: {speed_b[config, method]:.2f} TFLOPs/s, "
                     f"fwd + bwd: {speed_f_b[config, method]:.2f} TFLOPs/s"
                 )
+
+                sheet_data.write(i, 0, batch_size)
+                sheet_data.write(i, 1, nheads)
+                sheet_data.write(i, 2, seqlen)
+                sheet_data.write(i, 3, headdim)
+                sheet_data.write(i, 4, "fwd")
+                sheet_data.write(i, 5, causal)
+                sheet_data.write(i, 6, speed_f[config, method])
+
+                sheet_data.write(i+1, 0, batch_size)
+                sheet_data.write(i+1, 1, nheads)
+                sheet_data.write(i+1, 2, seqlen)
+                sheet_data.write(i+1, 3, headdim)
+                sheet_data.write(i+1, 4, "bwd")
+                sheet_data.write(i+1, 5, causal)
+                sheet_data.write(i+1, 6, speed_b[config, method])
+
+                i = i+2
 
 
 # with open('flash2_attn_time.plk', 'wb') as fp:
