@@ -238,7 +238,7 @@ class FlashAttnFunc(torch.autograd.Function):
     @staticmethod
     def backward(ctx, dout, *args):
         q, k, v, out, softmax_lse, rng_state = ctx.saved_tensors
-        dq, dk, dv = torch.empty_strided(q.size(),q.stride(), dtype=q.dtype, device=q.device), torch.empty_strided(k.size(), k.stride(), dtype=k.dtype, device=k.device), torch.empty_strided(v.size(), v.stride(), dtype=v.dtype, device=v.device)
+        dq, dk, dv = torch.empty_like(q), torch.empty_like(k), torch.empty_like(v)
         _flash_attn_backward(
             dout, q, k, v, out, softmax_lse,
             dq, dk, dv, ctx.dropout_p, ctx.softmax_scale, ctx.causal,
