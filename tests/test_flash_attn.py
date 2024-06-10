@@ -896,7 +896,8 @@ def test_flash_attn_output(
         
         # skip all cases where seqlen_q, seqlen_k, or d are not powers of 2
         if not (is_power_of_2(seqlen_q) and is_power_of_2(seqlen_k) and is_power_of_2(d)):
-            pytest.skip("seqlen_q, seqlen_k, or d are not powers of 2") 
+            pytest.skip("seqlen_q, seqlen_k, or d are not powers of 2")
+
     if (
         max(seqlen_q, seqlen_k) >= 2048
         and torch.cuda.get_device_properties("cuda").total_memory <= 16 * 2**30
@@ -1181,6 +1182,14 @@ def test_flash_attn_output(
 def test_flash_attn_varlen_output(
     seqlen_q, seqlen_k, d, dropout_p, causal, local, alibi, deterministic, mha_type, dtype, kvpacked, forward_only=True
 ):
+    if is_hip():
+        if dropout_p != 0.0:
+            pytest.skip("Dropout not supported in HIP")
+        
+        # skip all cases where seqlen_q, seqlen_k, or d are not powers of 2
+        if not (is_power_of_2(seqlen_q) and is_power_of_2(seqlen_k) and is_power_of_2(d)):
+            pytest.skip("seqlen_q, seqlen_k, or d are not powers of 2")
+
     if (
         max(seqlen_q, seqlen_k) >= 2048
         and torch.cuda.get_device_properties("cuda").total_memory <= 16 * 2**30
