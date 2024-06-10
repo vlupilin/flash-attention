@@ -1143,19 +1143,17 @@ def test_flash_attn_output(
         assert (dv - dv_ref).abs().max().item() <= 2 * (dv_pt - dv_ref).abs().max().item()
 
 
-# @pytest.mark.parametrize("kvpacked", [True, False])
-@pytest.mark.parametrize('kvpacked', [False])
-# @pytest.mark.parametrize("dtype", ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
-@pytest.mark.parametrize('dtype', [torch.float16])
+@pytest.mark.parametrize("kvpacked", [True, False])
+# @pytest.mark.parametrize('kvpacked', [False])
+@pytest.mark.parametrize("dtype", ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
+# @pytest.mark.parametrize('dtype', [torch.float16])
 # @pytest.mark.parametrize("mha_type", ["mha", "mqa", "gqa"])
 # @pytest.mark.parametrize('mha_type', ["mqa"])
 @pytest.mark.parametrize('mha_type', ["mha"])
-# @pytest.mark.parametrize("deterministic", [False, True])
+@pytest.mark.parametrize("deterministic", [False, True])
 # @pytest.mark.parametrize("deterministic", [True])
-@pytest.mark.parametrize("deterministic", [False])
-# @pytest.mark.parametrize("alibi", [False, True])
+@pytest.mark.parametrize("alibi", [False, True])
 # @pytest.mark.parametrize("alibi", [True])
-@pytest.mark.parametrize("alibi", [False])
 @pytest.mark.parametrize("local", [False, True])
 # @pytest.mark.parametrize("local", [True])
 @pytest.mark.parametrize("causal", [False, True])
@@ -1188,6 +1186,9 @@ def test_flash_attn_varlen_output(
     if is_hip():
         if dropout_p != 0.0:
             pytest.skip("Dropout not supported in HIP")
+        
+        if alibi == True:
+            pytest.skip("Alibi not supported with varlen in HIP")
         
         # skip all cases where seqlen_q, seqlen_k, or d are not powers of 2
         if not (is_power_of_2(seqlen_q) and is_power_of_2(seqlen_k) and is_power_of_2(d)):

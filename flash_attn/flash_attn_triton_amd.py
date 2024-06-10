@@ -1761,6 +1761,9 @@ def varlen_fwd(
     if dropout_p != 0.0:
         raise ValueError("dropout is not supported on HIP")
 
+    if alibi_slopes == True:
+        raise ValueError("Alibi not supported with varlen in HIP")
+
     
     if o is None:
         o = torch.empty_like(q)
