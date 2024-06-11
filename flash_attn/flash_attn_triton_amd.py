@@ -1577,7 +1577,71 @@ def fwd(q,
 
     return tri_out, q , k , v, o, softmax_lse, softmax_p, torch.get_rng_state()
 
+def varlen_fwd(
+        q, 
+        k, 
+        v, 
+        o,
+        cu_seqlens_q,
+        cu_seqlens_k,
+        seqused_k,
+        block_table_,
+        alibi_slopes,\
+        max_seqlen_q,
+        max_seqlen_k,
+        dropout_p,
+        softmax_scale,
+        zero_tensors,
+        causal,
+        window_size_left,
+        window_size_right,
+        return_softmax,
+        gen_):
+   
+    print("flash_attn_triton_amd.py::varlen_fwd")
+    print("q:", q.shape)
+    print("k:", k.shape)
+    print("v:", v.shape)
 
+    if dropout_p != 0.0:
+        raise ValueError("dropout is not supported on HIP")
+
+    if alibi_slopes == True:
+        raise ValueError("Alibi not supported with varlen in HIP")
+
+    
+    if o is None:
+        o = torch.empty_like(q)
+
+    
+
+    # create metadata object
+    input_metadata = MetaData(sm_scale=softmax_scale)
+    input_metadata.set_varlen_params(cu_seqlens_q, cu_seqlens_k)
+
+    # Setup metadata
+    if causal:
+        input_metadata.need_causal()
+    # if bias is not None:
+    #     metadata.need_bias(bias, q.shape[0], q.shape[1], q.shape[2], k.shape[2])
+    if alibi_slopes is not None: #FIXME
+        input_metadata.need_alibi(alibi_slopes, q.shape[0], q.shape[2])
+    if dropout_p > 0.0:
+        input_metadata.need_dropout(dropout_p, return_softmax)
+    
+    # Check arguments
+    input_metadata.check_args(q, k, v, o)
+
+    # Perform the forward attention computation
+    tri_out, encoded_softmax = attention(q, k, v, o, input_metadata)
+
+    softmax_lse = encoded_softmax
+    softmax_p = encoded_softmax
+
+    return tri_out, q , k , v, o, softmax_lse, softmax_p, torch.get_rng_state()
+
+def fwd_kvcache(*args, **kwargs):
+    pass
 
 
 def bwd(dout, q, k, v, out, softmax_lse, dq, dk, dv, alibi_slopes, dropout_p, softmax_scale,  causal, window_size_left,
@@ -1729,81 +1793,9 @@ def bwd(dout, q, k, v, out, softmax_lse, dq, dk, dv, alibi_slopes, dropout_p, so
     return dq, dk, dv, None
 
 
-
-
-
-def varlen_fwd(
-        q, 
-        k, 
-        v, 
-        o,
-        cu_seqlens_q,
-        cu_seqlens_k,
-        seqused_k,
-        block_table_,
-        alibi_slopes,\
-        max_seqlen_q,
-        max_seqlen_k,
-        dropout_p,
-        softmax_scale,
-        zero_tensors,
-        causal,
-        window_size_left,
-        window_size_right,
-        return_softmax,
-        gen_):
-   
-    print("flash_attn_triton_amd.py::varlen_fwd")
-    print("q:", q.shape)
-    print("k:", k.shape)
-    print("v:", v.shape)
-
-    if dropout_p != 0.0:
-        raise ValueError("dropout is not supported on HIP")
-
-    if alibi_slopes == True:
-        raise ValueError("Alibi not supported with varlen in HIP")
-
-    
-    if o is None:
-        o = torch.empty_like(q)
-
-    
-
-    # create metadata object
-    input_metadata = MetaData(sm_scale=softmax_scale)
-    input_metadata.set_varlen_params(cu_seqlens_q, cu_seqlens_k)
-
-    # Setup metadata
-    if causal:
-        input_metadata.need_causal()
-    # if bias is not None:
-    #     metadata.need_bias(bias, q.shape[0], q.shape[1], q.shape[2], k.shape[2])
-    if alibi_slopes is not None: #FIXME
-        input_metadata.need_alibi(alibi_slopes, q.shape[0], q.shape[2])
-    if dropout_p > 0.0:
-        input_metadata.need_dropout(dropout_p, return_softmax)
-    
-    # Check arguments
-    input_metadata.check_args(q, k, v, o)
-
-    # Perform the forward attention computation
-    tri_out, encoded_softmax = attention(q, k, v, o, input_metadata)
-
-    softmax_lse = encoded_softmax
-    softmax_p = encoded_softmax
-
-    return tri_out, q , k , v, o, softmax_lse, softmax_p, torch.get_rng_state()
-
-
-
-
 def varlen_bwd(dout, q, k, v, out, softmax_lse, dq, dk, dv, *args, **kwargs):
     pass
 
-
-def fwd_kvcache(*args, **kwargs):
-    pass
 
 
 
