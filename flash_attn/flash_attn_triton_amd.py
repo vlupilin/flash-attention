@@ -1641,8 +1641,35 @@ def varlen_fwd(
 
     return tri_out, q , k , v, o, softmax_lse, softmax_p, torch.get_rng_state()
 
-def fwd_kvcache(*args, **kwargs):
-    pass
+def fwd_kvcache( 
+        q,
+        k_cache,
+        v_cache,
+        k,
+        v,
+        cache_seqlens,
+        rotary_cos,
+        rotary_sin,
+        cache_batch_idx,
+        block_table,
+        alibi_slopes,
+        out,
+        softmax_scale,
+        causal,
+        window_size_left,
+        window_size_right,
+        rotary_interleaved,
+        num_splits):
+    
+    if out is None:
+        out = torch.empty_like(q)
+    
+    input_metadata = MetaData()
+    tri_out, encoded_softmax = attention(q, k, v, out, input_metadata)
+    softmax_lse = encoded_softmax
+    softmax_p = encoded_softmax
+
+    return tri_out, softmax_lse
 
 
 def bwd(dout, q, k, v, out, softmax_lse, dq, dk, dv, alibi_slopes, dropout_p, softmax_scale,  causal, window_size_left,

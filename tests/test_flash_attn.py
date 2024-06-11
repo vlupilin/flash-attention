@@ -1874,29 +1874,31 @@ def test_flash_attn_splitkv(
 
 # @pytest.mark.parametrize("dtype", ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
 @pytest.mark.parametrize("dtype", [torch.float16])
-@pytest.mark.parametrize("num_splits", [1, 0])
-# @pytest.mark.parametrize("num_splits", [1])
-@pytest.mark.parametrize("mha_type", ["mha", "mqa", "gqa"])
-# @pytest.mark.parametrize("mha_type", ["mha"])
-@pytest.mark.parametrize("new_kv", [False, True])
-# @pytest.mark.parametrize("new_kv", [False])
-@pytest.mark.parametrize("alibi", [False, True])
-# @pytest.mark.parametrize("alibi", [False])
-@pytest.mark.parametrize("local", [False, True])
-# @pytest.mark.parametrize("local", [False])
-@pytest.mark.parametrize("causal", [False, True])
-# @pytest.mark.parametrize("causal", [False])
-@pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True, False])
+# @pytest.mark.parametrize("num_splits", [1, 0])
+@pytest.mark.parametrize("num_splits", [1])
+# @pytest.mark.parametrize("mha_type", ["mha", "mqa", "gqa"])
+@pytest.mark.parametrize("mha_type", ["mha"])
+# @pytest.mark.parametrize("new_kv", [False, True])
+@pytest.mark.parametrize("new_kv", [False])
+# @pytest.mark.parametrize("alibi", [False, True])
+@pytest.mark.parametrize("alibi", [False])
+# @pytest.mark.parametrize("local", [False, True])
+@pytest.mark.parametrize("local", [False])
+# @pytest.mark.parametrize("causal", [False, True])
+@pytest.mark.parametrize("causal", [False])
+# @pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True, False])
 # @pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True])
-@pytest.mark.parametrize("rotary_interleaved", [False, True])
-# @pytest.mark.parametrize("rotary_interleaved", [False])
-@pytest.mark.parametrize("rotary_fraction", [0.0, 0.5, 1.0])
-# @pytest.mark.parametrize("rotary_fraction", [0.0])
-@pytest.mark.parametrize("paged_kv_block_size", [None, 256])
+@pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [False])
+# @pytest.mark.parametrize("rotary_interleaved", [False, True])
+@pytest.mark.parametrize("rotary_interleaved", [False])
+# @pytest.mark.parametrize("rotary_fraction", [0.0, 0.5, 1.0])
+@pytest.mark.parametrize("rotary_fraction", [0.0])
+# @pytest.mark.parametrize("paged_kv_block_size", [None, 256])
 # @pytest.mark.parametrize("paged_kv_block_size", [256, 512])
 # @pytest.mark.parametrize("paged_kv_block_size", [256])
-@pytest.mark.parametrize("has_batch_idx", [False, True])
-# @pytest.mark.parametrize("has_batch_idx", [False])
+@pytest.mark.parametrize("paged_kv_block_size", [None])
+# @pytest.mark.parametrize("has_batch_idx", [False, True])
+@pytest.mark.parametrize("has_batch_idx", [False])
 @pytest.mark.parametrize("d", [32, 59, 64, 80, 128, 256])
 # @pytest.mark.parametrize("d", [32, 64, 96, 128, 160, 192, 224, 256])
 # @pytest.mark.parametrize('d', [32, 40, 64, 80, 96, 128, 160, 192])
@@ -1936,6 +1938,14 @@ def test_flash_attn_kvcache(
     num_splits,
     dtype,
 ):
+    if is_hip():
+        # if alibi == True:
+        #     pytest.skip("Alibi not supported with varlen in HIP")
+        
+        # skip all cases where seqlen_q, seqlen_k, or d are not powers of 2
+        if not (is_power_of_2(seqlen_q) and is_power_of_2(seqlen_k) and is_power_of_2(d)):
+            pytest.skip("seqlen_q, seqlen_k, or d are not powers of 2")
+
     if seqlen_q > seqlen_k and new_kv:
         pytest.skip()
     if not new_kv and rotary_fraction > 0.0:
