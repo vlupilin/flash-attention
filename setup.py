@@ -233,17 +233,9 @@ def validate_and_update_archs(archs):
         archs (GCN arch strings): list of GPU architectures to be validated and updated
     """
     # List of allowed architectures
-    allowed_archs = [
-        "native",
-        "gfx908",
-        "gfx90a",
-        "gfx940",
-        "gfx941",
-        "gfx942",
-        "gfx1100",
-        "gfx1101",
-        "gfx1102",
-    ]
+
+    allowed_archs = ["native", "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx1100", "gfx1101", "gfx1102"]
+
 
     # Validate if each element in archs is in allowed_archs
     assert all(
