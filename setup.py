@@ -7,6 +7,7 @@ import ast
 import shutil
 import glob
 import subprocess
+import site
 
 from pathlib import Path
 from packaging.version import parse, Version
@@ -205,19 +206,75 @@ def build_for_cuda():
 
 
 def rename_cpp_to_hip(cpp_files):
+    """rename cpp files to hip files for flash-attention
+
+    Args:
+        cpp_files (files): list of cpp files to be renamed
+    """
     for entry in cpp_files:
         shutil.copy(entry, os.path.splitext(entry)[0] + ".hip")
 
 
+def apply_patch():
+    """apply patch for flash-attention"""
+    torch_version = parse(torch.__version__)
+    if torch_version.major < 2 or torch_version.minor < 1:
+        pytorch_dir = site.getsitepackages()[0]
+        hipify_path = os.path.join(pytorch_dir, "torch/utils/hipify/hipify_python.py")
+        patch_path = os.path.join(os.path.dirname(__file__), "hipify_python.patch")
+        subprocess.run(["patch", hipify_path, patch_path], check=True)
+
+
 # Defining a function to validate the GPU architectures and update them if necessary
 def validate_and_update_archs(archs):
+    """validate and update the GPU architectures
+
+    Args:
+        archs (GCN arch strings): list of GPU architectures to be validated and updated
+    """
     # List of allowed architectures
-    allowed_archs = ["native", "gfx90a", "gfx908", "gfx940", "gfx941", "gfx942"]
+
+    allowed_archs = ["native", "gfx908", "gfx90a", "gfx940", "gfx941", "gfx942", "gfx1100", "gfx1101", "gfx1102"]
+
 
     # Validate if each element in archs is in allowed_archs
     assert all(
         arch in allowed_archs for arch in archs
     ), f"One of GPU archs of {archs} is invalid or not supported by Flash-Attention"
+
+
+def get_gpu_arch():
+    """detect the GPU architecture
+
+    Returns:
+        _type_: None
+    """
+    try:
+        # Use rocminfo or lspci command to get GPU info
+        output = subprocess.check_output(["rocminfo"], universal_newlines=True)
+        # Match the GPU architecture using regex
+        match = re.search(r"gfx9\d+", output) or re.search(r"gfx11\d+", output)
+        if match:
+            return match.group(0)
+    except Exception as e:
+        print(f"Error detecting GPU architecture: {e}")
+        return None
+
+
+def set_cc_flag():
+    """set the CC flag according to the GPU architecture
+
+    Returns:
+        _type_: -D__WMMA__ or -D__MFMA__
+    """
+    gpu_arch = get_gpu_arch()
+    cc_flag = ""
+    if gpu_arch:
+        if gpu_arch.startswith("gfx11"):
+            cc_flag = "-D__WMMA__"
+        elif gpu_arch.startswith("gfx9"):
+            cc_flag = "-D__MFMA__"
+    return cc_flag
 
 
 def build_for_rocm():
@@ -232,10 +289,13 @@ def build_for_rocm():
     else:
         print("RTZ IS USED")
 
+    cc_flag.append(set_cc_flag())
+
     fa_sources = ["csrc/flash_attn_rocm/flash_api.cpp"] + glob.glob(
         "csrc/flash_attn_rocm/src/*.cpp"
     )
 
+    apply_patch()
     rename_cpp_to_hip(fa_sources)
 
     subprocess.run(

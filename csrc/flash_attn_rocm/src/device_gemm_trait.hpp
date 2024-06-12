@@ -25,6 +25,7 @@
 
 #include "params.hpp"
 
+#if defined(__MFMA__)
 // grouped
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_mha_fwd_xdl_cshuffle_v2.hpp"
 
@@ -36,6 +37,13 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_batched_mha_bwd_xdl_cshuffle_qloop_light_v1.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_mha_bwd_xdl_cshuffle_qloop_light_v2.hpp"
+#endif
+
+#if defined(__WMMA__)
+// wmma forward gemm
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_query_attention_forward_wmma.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_multi_query_attention_forward_wmma.hpp"
+#endif
 
 namespace device_gemm_trait {
 using Int32 = int;
@@ -63,14 +71,14 @@ static constexpr auto kMaskingSpecCausal =
     MaskingSpec::MaskUpperTriangleFromTopLeft;
 
 template <typename InputDataType_, GemmSpec kGemmSpec_,
-          MaskingSpec kMaskingSpec_, bool kIsDeterministic_>
+          MaskingSpec kMaskingSpec_, bool kIsDeterministic_ = kNonDeterministic>
 struct Forward {
-  using ADataType = InputDataType_;
-  using B0DataType = InputDataType_;
-  using B1DataType = InputDataType_;
+  using QDataType = InputDataType_;
+  using KDataType = InputDataType_;
+  using VDataType = InputDataType_;
   using AccDataType = Float32;
-  using CShuffleDataType = Float32;
-  using CDataType = InputDataType_;
+  using OutShuffleDataType = Float32;
+  using OutDataType = InputDataType_;
   using GemmDataType = InputDataType_;
   using ZDataType = Int8;
   using LSEDataType = Float32;
@@ -91,19 +99,20 @@ struct Forward {
 
   static constexpr auto kGemmSpec = kGemmSpec_;
 
-  static constexpr auto kTensorSpecA = TensorSpec::Default;
-  static constexpr auto kTensorSpecB0 = TensorSpec::Default;
-  static constexpr auto kTensorSpecB1 = TensorSpec::Default;
-  static constexpr auto kTensorSpecC = TensorSpec::Default;
+  static constexpr auto kTensorSpecQ = TensorSpec::Default;
+  static constexpr auto kTensorSpecK = TensorSpec::Default;
+  static constexpr auto kTensorSpecV = TensorSpec::Default;
+  static constexpr auto kTensorSpecOut = TensorSpec::Default;
 
   static constexpr auto kMaskingSpec = kMaskingSpec_;
   static constexpr bool kIsDeterministic = kIsDeterministic_;
 }; // device gemm traits forward
 
+#if !defined(__WMMA__)
 template <
     typename InputDataType_, typename OutputDataType_, typename GemmDataType_,
     Index kCShuffleBlockTransferScalarPerVectorNPerBlock_, GemmSpec kGemmSpec_,
-    MaskingSpec kMaskingSpec_, bool kIsDeterministic_>
+    MaskingSpec kMaskingSpec_, bool kIsDeterministic_ = kNonDeterministic>
 struct Backward {
   using InputDataType = InputDataType_;
   using OutputDataType = OutputDataType_;
@@ -136,9 +145,10 @@ struct Backward {
   static constexpr auto kTensorSpecQ = TensorSpec::Default;
   static constexpr auto kTensorSpecK = TensorSpec::Default;
   static constexpr auto kTensorSpecV = TensorSpec::Default;
-  static constexpr auto kTensorSpecY = TensorSpec::Default;
+  static constexpr auto kTensorSpecOut = TensorSpec::Default;
 
   static constexpr auto kMaskingSpec = kMaskingSpec_;
   static constexpr bool kIsDeterministic = kIsDeterministic_;
 }; // device gemm traits backward
+#endif
 } // namespace device_gemm_trait

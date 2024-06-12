@@ -23,6 +23,7 @@
 
 #pragma once
 
+#if !defined(__WMMA__)
 #include "bwd_device_gemm_template.hpp"
 #include "params.hpp"
 
@@ -157,3 +158,4 @@ public:
   }
 };
 } // namespace bwd_device_gemm
+#endif

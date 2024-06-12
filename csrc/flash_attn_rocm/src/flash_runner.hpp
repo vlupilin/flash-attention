@@ -23,11 +23,14 @@
 
 #pragma once
 
+#if !defined(__WMMA__)
 #include "bwd_device_gemm_invoker.hpp"
+#endif
 #include "fwd_device_gemm_invoker.hpp"
 
 #include "static_switch.hpp"
 
+#if defined(__MFMA__)
 class FlashRunner {
 public:
   template <typename FlashParams>
@@ -94,3 +97,52 @@ private:
     }
   }
 };
+
+#elif defined(__WMMA__)
+class FlashRunner {
+public:
+  template <typename FlashParams>
+  void Run(FlashParams &params, hipStream_t &stream) {
+    BOOL_SWITCH((params.h_kv == 1), kIsMQA, [&] {
+      BF16_SWITCH(params.is_bf16, [&] {
+        BOOL_SWITCH(params.is_mnko_padding, kIsPadding, [&] {
+          BOOL_SWITCH(params.is_causal, kIsCausal, [&] {
+            this->template run_<FlashParams, kIsMQA, T, kIsPadding, kIsCausal>(
+                params, stream);
+          });
+        });
+      });
+    });
+  }
+
+private:
+  template <typename FlashParams, bool kIsMQA, typename T, bool kIsPadding,
+            bool kIsCausal>
+  void run_(FlashParams &params, hipStream_t &stream);
+
+  template <typename FlashFwdParams,
+            template <typename> typename DeviceGemmTemplate, typename T,
+            device_gemm_trait::GemmSpec kGemmSpec,
+            device_gemm_trait::MaskingSpec kMaskingSpec>
+  void run_fwd_(FlashFwdParams &params, hipStream_t &stream) {
+    // input, output, gemm, dropout, cshuffle, masking specialization,
+    using DeviceGemmTraits =
+        device_gemm_trait::Forward<T, kGemmSpec, kMaskingSpec>;
+    using Invoker = fwd_device_gemm::wmma::DeviceGemmInvoker<DeviceGemmTemplate,
+                                                             DeviceGemmTraits>;
+    Invoker(params, stream);
+  }
+};
+
+#else
+class FlashRunner {
+public:
+  template <typename FlashParams>
+  void Run(FlashParams &params, hipStream_t &stream) {
+    // Default implementation or error handling
+    throw std::runtime_error("Neither __MFMA__ nor __WMMA__ is defined.");
+  }
+
+  // Other member functions as needed
+};
+#endif

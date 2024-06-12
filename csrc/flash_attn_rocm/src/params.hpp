@@ -205,6 +205,7 @@ struct FlashFwdBatchedParams : public BatchedParams {
   bool return_softmax;
 };
 
+#if !defined(__WMMA__)
 // Backward Batched Arguments
 struct FlashBwdBatchedParams : public BatchedParams {
   explicit FlashBwdBatchedParams(
@@ -486,13 +487,13 @@ struct FlashBwdGroupedParams : public GroupedParams {
       // MQA / GQA readiness
       // KGrad layout [b, max_seqlen_kv, h_q, d]
       std::vector<Index> dk_lengths{1, h_q, seqlens_kv[i], d};
-      std::vector<Index> dk_strides{curr_dkv_batch_stride,
-                                    dkv_head_stride, dkv_seq_stride, 1};
+      std::vector<Index> dk_strides{curr_dkv_batch_stride, dkv_head_stride,
+                                    dkv_seq_stride, 1};
 
       // VGrad layout [b, max_seqlen_kv, h_q, d]
       std::vector<Index> dv_lengths{1, h_q, d, seqlens_kv[i]};
-      std::vector<Index> dv_strides{curr_dkv_batch_stride,
-                                    dkv_head_stride, 1, dkv_seq_stride};
+      std::vector<Index> dv_strides{curr_dkv_batch_stride, dkv_head_stride, 1,
+                                    dkv_seq_stride};
 
       z_lengths_vec.push_back(z_lengths);
       z_strides_vec.push_back(z_strides);
@@ -521,3 +522,4 @@ struct FlashBwdGroupedParams : public GroupedParams {
 
   bool return_softmax;
 };
+#endif

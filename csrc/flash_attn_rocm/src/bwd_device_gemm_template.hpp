@@ -23,6 +23,7 @@
 
 #pragma once
 
+#if !defined(__WMMA__)
 #include "device_gemm_trait.hpp"
 
 namespace bwd_device_gemm {
@@ -51,7 +52,8 @@ using DeviceGemmGroupedHeadDim32 = device_op::
         typename DeviceGemmTraits::VElementOp,
         typename DeviceGemmTraits::OutElementOp, DeviceGemmTraits::kGemmSpec,
         DeviceGemmTraits::kTensorSpecQ, DeviceGemmTraits::kTensorSpecK,
-        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecY, 1, 256,
+        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecOut, 1,
+        256,
         128,                                // MPerBlock
         128,                                // NPerBlock
         32,                                 // KPerBlock
@@ -105,7 +107,8 @@ using DeviceGemmGroupedHeadDim64 = device_op::
         typename DeviceGemmTraits::VElementOp,
         typename DeviceGemmTraits::OutElementOp, DeviceGemmTraits::kGemmSpec,
         DeviceGemmTraits::kTensorSpecQ, DeviceGemmTraits::kTensorSpecK,
-        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecY, 1, 256,
+        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecOut, 1,
+        256,
         128,                                // MPerBlock
         128,                                // NPerBlock
         64,                                 // KPerBlock
@@ -159,7 +162,8 @@ using DeviceGemmGroupedHeadDim128 = device_op::
         typename DeviceGemmTraits::VElementOp,
         typename DeviceGemmTraits::OutElementOp, DeviceGemmTraits::kGemmSpec,
         DeviceGemmTraits::kTensorSpecQ, DeviceGemmTraits::kTensorSpecK,
-        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecY, 1, 256,
+        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecOut, 1,
+        256,
         64,                                 // MPerBlock
         128,                                // NPerBlock
         64,                                 // KPerBlock
@@ -215,7 +219,8 @@ using DeviceGemmBatchedHeadDim32 = device_op::
         typename DeviceGemmTraits::VElementOp,
         typename DeviceGemmTraits::OutElementOp, DeviceGemmTraits::kGemmSpec,
         DeviceGemmTraits::kTensorSpecQ, DeviceGemmTraits::kTensorSpecK,
-        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecY, 1, 256,
+        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecOut, 1,
+        256,
         128,                                // MPerBlock
         128,                                // NPerBlock
         32,                                 // KPerBlock
@@ -267,7 +272,8 @@ using DeviceGemmBatchedHeadDim64 = device_op::
         typename DeviceGemmTraits::VElementOp,
         typename DeviceGemmTraits::OutElementOp, DeviceGemmTraits::kGemmSpec,
         DeviceGemmTraits::kTensorSpecQ, DeviceGemmTraits::kTensorSpecK,
-        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecY, 1, 256,
+        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecOut, 1,
+        256,
         128,                                // MPerBlock
         128,                                // NPerBlock
         64,                                 // KPerBlock
@@ -321,7 +327,8 @@ using DeviceGemmBatchedHeadDim128 = device_op::
         typename DeviceGemmTraits::VElementOp,
         typename DeviceGemmTraits::OutElementOp, DeviceGemmTraits::kGemmSpec,
         DeviceGemmTraits::kTensorSpecQ, DeviceGemmTraits::kTensorSpecK,
-        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecY, 1, 256,
+        DeviceGemmTraits::kTensorSpecV, DeviceGemmTraits::kTensorSpecOut, 1,
+        256,
         64,                                 // MPerBlock
         128,                                // NPerBlock
         64,                                 // KPerBlock
@@ -354,3 +361,4 @@ using DeviceGemmBatchedHeadDim128 = device_op::
         DeviceGemmTraits::kMaskingSpec, // MaskingSpec
         DeviceGemmTraits::kIsDeterministic>;
 } // namespace bwd_device_gemm
+#endif
