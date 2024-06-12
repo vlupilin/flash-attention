@@ -1660,6 +1660,10 @@ def fwd_kvcache(
         window_size_right,
         rotary_interleaved,
         num_splits):
+    print("flash_attn_triton_amd.py::fwd_kvcache")
+    print("q:", q.shape)
+    print("k:", k)
+    print("v:", v)
     
     if out is None:
         out = torch.empty_like(q)
